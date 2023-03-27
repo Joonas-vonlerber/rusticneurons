@@ -1,0 +1,13 @@
+[package]
+name = "neural_network_lib"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nalgebra  = { version = "0.32.1", features = ["rand", "serde-serialize"] }
+conv = '0.3.3'
+rand = '0.8.5'
+bincode = "1.3.3"
+serde = "1.0.152"
