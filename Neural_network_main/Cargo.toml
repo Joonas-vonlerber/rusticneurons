@@ -1,5 +1,5 @@
 [package]
-name = "Neural_network_main"
+name = "neural_network_main"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 neural_network_lib = {path = '../Neural_network_lib'}
 neural_network_macro_lib = {path = '../Neural_network_macro_lib'}
+nalgebra = '0.32.2'

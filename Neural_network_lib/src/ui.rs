@@ -18,7 +18,7 @@ impl fmt::Display for NumberImage {
             let end = start + self.columns as usize;
             let line = &self.data.data.as_vec()[start..end];
             let line: String = line
-                .into_iter()
+                .iter()
                 .map(|x| greyscale[f32::round(*x * 9.0) as usize] as char)
                 .collect();
             row_vec.push(line);

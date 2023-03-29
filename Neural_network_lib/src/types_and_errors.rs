@@ -20,6 +20,7 @@ pub struct NeuralNetwork {
     pub final_activation: ActivationFunction,
     pub hidden_activation: ActivationFunction,
     pub gradient_decent: GradientDecentType,
+    pub optimizer: Optimizer,
 }
 
 impl Layer {
@@ -88,14 +89,16 @@ impl NeuralNetwork {
         loss_function: LossFunction,
         final_activation: ActivationFunction,
         hidden_activation: ActivationFunction,
-        gradient_decent: GradientDecentType
+        gradient_decent: GradientDecentType,
+        optimizer: Optimizer,
     ) -> Self {
         let mut temp_neural_network: NeuralNetwork = NeuralNetwork {
             neural_network: vec![],
-            loss_function: loss_function,
-            final_activation: final_activation,
-            hidden_activation: hidden_activation,
-            gradient_decent: gradient_decent,
+            loss_function,
+            final_activation,
+            hidden_activation,
+            gradient_decent,
+            optimizer,
         };
         temp_neural_network.neural_network = dims
             .windows(2)
@@ -116,7 +119,8 @@ impl NeuralNetwork {
             loss_function: self.loss_function, 
             final_activation: self.final_activation ,
             hidden_activation: self.hidden_activation ,
-            gradient_decent: self.gradient_decent }
+            gradient_decent: self.gradient_decent,
+            optimizer: self.optimizer}
 
     }
 
@@ -136,6 +140,7 @@ impl<'a, 'b> Add<&'b NeuralNetwork> for &'a NeuralNetwork {
             final_activation: self.final_activation,
             hidden_activation: self.hidden_activation,
             gradient_decent: self.gradient_decent,
+            optimizer: self.optimizer,
         }
     }
 }
@@ -149,6 +154,7 @@ impl Mul<&NeuralNetwork> for &NeuralNetwork {
             final_activation: self.final_activation,
             hidden_activation: self.hidden_activation,
             gradient_decent: self.gradient_decent,
+            optimizer: self.optimizer,
         }
     }
 }
@@ -162,6 +168,7 @@ impl<'a, 'b> Mul<&'b f32> for &'a NeuralNetwork {
             final_activation: self.final_activation,
             hidden_activation: self.hidden_activation,
             gradient_decent: self.gradient_decent,
+            optimizer: self.optimizer,
         }
     }
 }
@@ -208,6 +215,17 @@ pub enum GradientDecentType {
     MiniBatch(usize),
     Batch,
 }
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Copy)]
+pub enum Optimizer {
+    SGD,
+    Momentum(f32),
+    NstMomentum(f32),
+    AdaGrad,
+    AdaDelta(f32),
+    RMSprop(f32),
+    Adam(f32,f32),
+}
+
 #[derive(Debug)]
 pub enum NeuralNetworkError {
     CostError,

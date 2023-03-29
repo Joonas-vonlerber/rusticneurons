@@ -26,19 +26,19 @@ pub fn load_network_bincode<P: AsRef<Path>>(path: P) -> Result<NeuralNetwork> {
     let mut buf = vec![];
     if file.read_to_end(&mut buf).is_ok() {
         match deserialize(&buf[..]) {
-            Ok(neural_network) => return Ok(neural_network),
+            Ok(neural_network) => Ok(neural_network),
             Err(_) => {
-                return Err(std::io::Error::new(
+                Err(std::io::Error::new(
                     io::ErrorKind::Other,
                     "Deserializing failed!",
                 ))
             }
         }
     } else {
-        return Err(std::io::Error::new(
+        Err(std::io::Error::new(
             io::ErrorKind::Other,
             "Reading to buffer failed",
-        ));
+        ))
     }
 }
 pub fn load_inputs(filename: &str) -> io::Result<Vec<DVector<f32>>> {
@@ -46,7 +46,7 @@ pub fn load_inputs(filename: &str) -> io::Result<Vec<DVector<f32>>> {
     ignore_magic_number(&mut file)?;
     let count = read_num_of_items(&mut file)?;
     let image_size = read_image_size(&mut file)?;
-    let images = read_images(&mut file, count, image_size)?;
+    let images = read_images_and_normalize(&mut file, count, image_size)?;
     Ok(images)
 }
 
@@ -73,7 +73,7 @@ fn read_image_size(file: &mut BufReader<File>) -> io::Result<i32> {
     Ok(dimensions.iter().product())
 }
 
-fn read_images(
+fn read_images_and_normalize(
     file: &mut BufReader<File>,
     count: i32,
     image_size: i32,
@@ -85,7 +85,7 @@ fn read_images(
         let image = DVector::from_vec(
             buffer
                 .iter()
-                .map(|x| *x as f32 / 255 as f32)
+                .map(|x| *x as f32 / 255_f32)
                 .collect::<Vec<f32>>(),
         );
         images.push(image);

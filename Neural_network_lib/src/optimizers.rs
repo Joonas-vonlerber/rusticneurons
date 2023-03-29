@@ -94,7 +94,7 @@ impl NeuralNetwork {
                 self = &self + &gradient;
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, &data));
+            loss_buffer.push_back(loss(&mut self, data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -105,7 +105,7 @@ impl NeuralNetwork {
             println!(
                 "epoch {} is done, loss: {}",
                 epoch,
-                loss(&mut self, &data)
+                loss(&mut self, data)
             );
         }
         self
@@ -129,7 +129,7 @@ impl NeuralNetwork {
                 self = &self + &weight_update;
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, &data));
+            loss_buffer.push_back(loss(&mut self, data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -140,7 +140,7 @@ impl NeuralNetwork {
             println!(
                 "epoch {} is done, loss: {}",
                 epoch,
-                loss(&mut self, &data)
+                loss(&mut self, data)
             );
         }
         self
@@ -164,7 +164,7 @@ impl NeuralNetwork {
                 self = &self + &weight_update;
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, &data));
+            loss_buffer.push_back(loss(&mut self, data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -175,7 +175,7 @@ impl NeuralNetwork {
             println!(
                 "epoch {} is done, loss: {}",
                 epoch,
-                loss(&mut self, &data)
+                loss(&mut self, data)
             );
         }
         self
@@ -201,7 +201,7 @@ impl NeuralNetwork {
                 self = &self + &weight_update;
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, &data));
+            loss_buffer.push_back(loss(&mut self, data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -212,7 +212,7 @@ impl NeuralNetwork {
             println!(
                 "epoch {} is done, loss: {}",
                 epoch,
-                loss(&mut self, &data)
+                loss(&mut self, data)
             );
         }
         self
@@ -246,7 +246,7 @@ impl NeuralNetwork {
                 self = &self + &(&weight_update * &-1.0);
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, &data));
+            loss_buffer.push_back(loss(&mut self, data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -257,12 +257,12 @@ impl NeuralNetwork {
             println!(
                 "epoch {} is done, loss: {}",
                 epoch,
-                loss(&mut self, &data)
+                loss(&mut self, data)
             );
         }
         self
     }
-    pub fn rmsprop(mut self, chunk_size: usize ,alpha: f32,data: &mut Vec<(&vector<f32>,&vector<f32>)>, learning_rate: f32, epochs: u32) -> NeuralNetwork{
+    pub fn rmsprop(mut self, chunk_size: usize, decay: f32,data: &mut Vec<(&vector<f32>,&vector<f32>)>, learning_rate: f32, epochs: u32) -> NeuralNetwork{
         let mut gradient: NeuralNetwork = self.clone().clear();
         let mut forward: Layer;
         let mut backward: NeuralNetwork;
@@ -277,12 +277,12 @@ impl NeuralNetwork {
                     backward = self.backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
                 }
-                squared_gradient_sum = &(&squared_gradient_sum * &alpha) + &(&gradient.map(&|param| param*param) * &(1.0-alpha));
+                squared_gradient_sum = &(&squared_gradient_sum * &decay) + &(&gradient.map(&|param| param*param) * &(1.0-decay));
                 
                 self = &self + &(&(&gradient * &squared_gradient_sum.map(&|param| 1.0/(param.sqrt()+f32::EPSILON))) * &learn_scalar);
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, &data));
+            loss_buffer.push_back(loss(&mut self, data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -293,7 +293,7 @@ impl NeuralNetwork {
             println!(
                 "epoch {} is done, loss: {}",
                 epoch,
-                loss(&mut self, &data)
+                loss(&mut self, data)
             );
         }
         self
@@ -326,7 +326,7 @@ impl NeuralNetwork {
                 self = &self + &(&(&first_moment_norm * &-learning_rate) * &(second_moment_norm.map(&|param| 1.0/(param.sqrt() + f32::EPSILON))));
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, &data));
+            loss_buffer.push_back(loss(&mut self, data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -337,16 +337,25 @@ impl NeuralNetwork {
             println!(
                 "epoch {} is done, loss: {}",
                 epoch,
-                loss(&mut self, &data)
+                loss(&mut self, data)
             );
         }
         self
     }
     pub fn train(self, data: &mut Vec<(&vector<f32>,&vector<f32>)>, learning_rate: f32, epochs: u32) -> NeuralNetwork {
-        match self.gradient_decent {
-            GradientDecentType::MiniBatch(chunk_size) => self.minibatch(chunk_size, data, learning_rate, epochs),
-            GradientDecentType::Batch => self.minibatch(data.len(), data, learning_rate, epochs),
-            GradientDecentType::Stochastic => self.minibatch(1, data, learning_rate, epochs),
+        let chunk_size = match self.gradient_decent {
+            GradientDecentType::Stochastic => 1,
+            GradientDecentType::Batch => data.len(),
+            GradientDecentType::MiniBatch(batch_size) => batch_size,
+        };
+        match self.optimizer {
+            Optimizer::SGD => self.minibatch(chunk_size, data, learning_rate, epochs),
+            Optimizer::Momentum(momentum) => self.momentum(chunk_size, data, learning_rate, momentum, epochs),
+            Optimizer::NstMomentum(momentum) => self.nesterov_momentum(chunk_size, data, learning_rate, momentum, epochs),
+            Optimizer::AdaGrad => self.adagrad(chunk_size, data, learning_rate, epochs),
+            Optimizer::AdaDelta(decay) => self.adadelta(chunk_size, decay, data, epochs),
+            Optimizer::RMSprop(decay) => self.rmsprop(chunk_size, decay, data, learning_rate, epochs),
+            Optimizer::Adam(beta1, beta2) => self.adam(chunk_size, data, beta1, beta2, learning_rate, epochs),
         }
     }
 }

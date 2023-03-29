@@ -38,7 +38,7 @@ fn linear(input: &vector<f32>, derivative: bool) -> ActivationOutput {
 
 pub fn standard_deviation(data: &VecDeque<f32>) -> f32 {
     let mean: f32 = data.iter().sum::<f32>() / data.len() as f32;
-    let variance: Vec<f32> = data.iter().map(|elem| (elem - &mean).powi(2)).collect();
+    let variance: Vec<f32> = data.iter().map(|elem| (elem - mean).powi(2)).collect();
     let standard_deviation =
         variance.iter().sum::<f32>() / variance.len() as f32;
     f32::sqrt(standard_deviation)
@@ -107,9 +107,9 @@ fn soft_max(input: &vector<f32>, derivative: bool) -> ActivationOutput {
 
 fn gelu(input: &vector<f32>, derivative: bool) -> ActivationOutput {
     ActivationOutput::Vector(match derivative {
-        false => input.map(|value|0.5*value*(1.0+(0.797884560*(value+0.044715*value.powi(3))).tanh())),
+        false => input.map(|value|0.5*value*(1.0+(0.797_884_6*(value+0.044715*value.powi(3))).tanh())),
         true => {
-            gelu(input, false).extract_vector() + input.map(|value|0.3989422804*value*(-value*value/2.0).exp())
+            gelu(input, false).extract_vector() + input.map(|value|0.398_942_3*value*(-value*value/2.0).exp())
         }
     })
 }
