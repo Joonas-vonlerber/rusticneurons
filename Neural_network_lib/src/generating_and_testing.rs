@@ -1,9 +1,156 @@
 use crate::files;
-use crate::ui;
-use nalgebra::DVector as vector;
-
 use crate::loss_and_activation_functions::loss_function;
-use crate::types_and_errors::NeuralNetwork;
+use crate::types_and_errors::*;
+use crate::ui;
+use nalgebra::DMatrix as matrix;
+use nalgebra::DVector as vector;
+use rand::{
+    distributions::{Distribution, Uniform},
+    thread_rng,
+};
+use statrs::distribution::Normal;
+
+impl Layer {
+    pub fn zeros(from_dim: usize, to_dim: usize) -> Self {
+        Layer {
+            outputs: vector::zeros(from_dim),
+            values: vector::zeros(from_dim),
+            weights: matrix::zeros(to_dim, from_dim),
+            biases: vector::zeros(to_dim),
+        }
+    }
+    pub fn uniform(from_dim: usize, to_dim: usize) -> Self {
+        let distribution = Uniform::new(-1.0, 1.0);
+        let rng = &mut thread_rng();
+        Layer {
+            outputs: vector::zeros(from_dim),
+            values: vector::zeros(from_dim),
+            weights: matrix::from_distribution(to_dim, from_dim, &distribution, rng),
+            biases: vector::from_distribution(to_dim, &distribution, rng),
+        }
+    }
+    pub fn he_init(from_dim: usize, to_dim: usize) -> Self {
+        let distribution = Normal::new(0.0f64, 2.0 / from_dim as f64).unwrap();
+        let rng = &mut thread_rng();
+        Layer {
+            values: vector::zeros(from_dim),
+            outputs: vector::zeros(from_dim),
+            weights: matrix::from_distribution(to_dim, from_dim, &distribution, rng)
+                .map(|i| i as f32),
+            biases: vector::zeros(to_dim),
+        }
+    }
+    pub fn xavier_init<T>(from_dim: usize, to_dim: usize, previous_dist: &T) -> Self
+    where
+        T: Distribution<f64>,
+    {
+        let rng = &mut thread_rng();
+        Layer {
+            values: vector::zeros(from_dim),
+            outputs: vector::zeros(from_dim),
+            weights: matrix::from_distribution(to_dim, from_dim, previous_dist, rng)
+                .map(|i| i as f32),
+            biases: vector::zeros(to_dim),
+        }
+    }
+}
+
+impl NeuralNetwork {
+    pub fn zeros(
+        dims: &[usize],
+        loss_function: LossFunction,
+        final_activation: ActivationFunction,
+        hidden_activation: ActivationFunction,
+        gradient_decent: GradientDecentType,
+        optimizer: Optimizer,
+    ) -> Self {
+        let mut temp_neural_network: NeuralNetwork = NeuralNetwork {
+            neural_network: vec![],
+            loss_function,
+            final_activation,
+            hidden_activation,
+            gradient_decent,
+            optimizer,
+        };
+        temp_neural_network.neural_network = dims
+            .windows(2)
+            .map(|dims| Layer::zeros(dims[0], dims[1]))
+            .collect();
+        temp_neural_network
+    }
+    pub fn uniform(
+        dims: &[usize],
+        loss_function: LossFunction,
+        final_activation: ActivationFunction,
+        hidden_activation: ActivationFunction,
+        gradient_decent: GradientDecentType,
+        optimizer: Optimizer,
+    ) -> Self {
+        let mut temp_neural_network: NeuralNetwork = NeuralNetwork {
+            neural_network: vec![],
+            loss_function,
+            final_activation,
+            hidden_activation,
+            gradient_decent,
+            optimizer,
+        };
+        temp_neural_network.neural_network = dims
+            .windows(2)
+            .map(|dims| Layer::uniform(dims[0], dims[1]))
+            .collect();
+        temp_neural_network
+    }
+    pub fn he_init(
+        dims: &[usize],
+        loss_function: LossFunction,
+        final_activation: ActivationFunction,
+        hidden_activation: ActivationFunction,
+        gradient_decent: GradientDecentType,
+        optimizer: Optimizer,
+    ) -> Self {
+        let mut temp_neural_network: NeuralNetwork = NeuralNetwork {
+            neural_network: vec![],
+            loss_function,
+            final_activation,
+            hidden_activation,
+            gradient_decent,
+            optimizer,
+        };
+        temp_neural_network.neural_network = dims
+            .windows(2)
+            .map(|dims| Layer::he_init(dims[0], dims[1]))
+            .collect();
+        temp_neural_network
+    }
+    pub fn xavier_init(
+        dims: &[usize],
+        loss_function: LossFunction,
+        final_activation: ActivationFunction,
+        hidden_activation: ActivationFunction,
+        gradient_decent: GradientDecentType,
+        optimizer: Optimizer,
+    ) -> Self {
+        let mut temp_neural_network = NeuralNetwork {
+            neural_network: vec![],
+            loss_function,
+            final_activation,
+            hidden_activation,
+            gradient_decent,
+            optimizer,
+        };
+        let mut distribution = Normal::new(0.0, (1.0 / dims[0] as f64).sqrt()).unwrap();
+        for dim in dims.windows(2) {
+            temp_neural_network.neural_network.push(Layer::xavier_init(
+                dim[0],
+                dim[1],
+                &distribution,
+            ));
+            distribution = Normal::new(0.0, (1.0 / dim[0] as f64).sqrt()).unwrap()
+        }
+        temp_neural_network
+    }
+}
+
 pub fn initialize_expected_outputs_mnist(labels: &[u8]) -> Vec<vector<f32>> {
     let expected: Vec<vector<f32>> = labels
         .iter()
@@ -65,6 +212,9 @@ pub fn print_number_and_test(neural_network: &mut NeuralNetwork) {
     println!("{}", neural_network.forward_phase(&data[n].clone()).outputs);
     println!(
         "{}",
-        neural_network.forward_phase(&data[n].clone()).outputs.imax()
+        neural_network
+            .forward_phase(&data[n].clone())
+            .outputs
+            .imax()
     );
 }

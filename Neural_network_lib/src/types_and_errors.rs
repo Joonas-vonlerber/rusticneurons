@@ -1,6 +1,7 @@
 use nalgebra::{DMatrix as matrix, DVector as vector};
-use rand::{distributions::Uniform, thread_rng};
+
 use serde::{Deserialize, Serialize};
+
 use std::{
     default::Default,
     fmt::Display,
@@ -21,19 +22,6 @@ pub struct NeuralNetwork {
     pub hidden_activation: ActivationFunction,
     pub gradient_decent: GradientDecentType,
     pub optimizer: Optimizer,
-}
-
-impl Layer {
-    pub fn new(from_dim: usize, to_dim: usize) -> Self {
-        let distribution = Uniform::new(-1.0, 1.0);
-        let mut rng = thread_rng();
-        Layer {
-            outputs: vector::zeros(from_dim),
-            values: vector::zeros(from_dim),
-            weights: matrix::from_distribution(to_dim, from_dim, &distribution, &mut rng),
-            biases: vector::from_distribution(to_dim, &distribution, &mut rng),
-        }
-    }
 }
 
 impl Default for Layer {
@@ -84,47 +72,31 @@ impl Mul<&Layer> for &Layer {
 }
 
 impl NeuralNetwork {
-    pub fn new(
-        dims: &[usize],
-        loss_function: LossFunction,
-        final_activation: ActivationFunction,
-        hidden_activation: ActivationFunction,
-        gradient_decent: GradientDecentType,
-        optimizer: Optimizer,
-    ) -> Self {
-        let mut temp_neural_network: NeuralNetwork = NeuralNetwork {
-            neural_network: vec![],
-            loss_function,
-            final_activation,
-            hidden_activation,
-            gradient_decent,
-            optimizer,
-        };
-        temp_neural_network.neural_network = dims
-            .windows(2)
-            .map(|dims| Layer::new(dims[0], dims[1]))
-            .collect();
-        temp_neural_network
-    }
     pub fn clear(self) -> Self {
-        self.map(&|elem| (0.0*elem).abs())
+        self.map(&|elem| (0.0 * elem).abs())
     }
-    pub fn map<F>(&self, f: &F) -> Self 
-    where F: Fn(f32) -> f32{
-        NeuralNetwork { neural_network: self.neural_network.iter().map(|layer| Layer {
-            values: layer.values.map(f),
-            outputs: layer.outputs.map(f),
-            weights: layer.weights.map(f),
-            biases: layer.biases.map(f)}).collect(), 
-            loss_function: self.loss_function, 
-            final_activation: self.final_activation ,
-            hidden_activation: self.hidden_activation ,
+    pub fn map<F>(&self, f: &F) -> Self
+    where
+        F: Fn(f32) -> f32,
+    {
+        NeuralNetwork {
+            neural_network: self
+                .neural_network
+                .iter()
+                .map(|layer| Layer {
+                    values: layer.values.map(f),
+                    outputs: layer.outputs.map(f),
+                    weights: layer.weights.map(f),
+                    biases: layer.biases.map(f),
+                })
+                .collect(),
+            loss_function: self.loss_function,
+            final_activation: self.final_activation,
+            hidden_activation: self.hidden_activation,
             gradient_decent: self.gradient_decent,
-            optimizer: self.optimizer}
-
+            optimizer: self.optimizer,
+        }
     }
-
-    
 }
 impl<'a, 'b> Add<&'b NeuralNetwork> for &'a NeuralNetwork {
     type Output = NeuralNetwork;
@@ -149,7 +121,12 @@ impl Mul<&NeuralNetwork> for &NeuralNetwork {
     type Output = NeuralNetwork;
     fn mul(self, rhs: &NeuralNetwork) -> Self::Output {
         NeuralNetwork {
-            neural_network: self.neural_network.iter().zip(rhs.neural_network.iter()).map(|(layer1, layer2)| layer1*layer2).collect(),
+            neural_network: self
+                .neural_network
+                .iter()
+                .zip(rhs.neural_network.iter())
+                .map(|(layer1, layer2)| layer1 * layer2)
+                .collect(),
             loss_function: self.loss_function,
             final_activation: self.final_activation,
             hidden_activation: self.hidden_activation,
@@ -223,7 +200,7 @@ pub enum Optimizer {
     AdaGrad,
     AdaDelta(f32),
     RMSprop(f32),
-    Adam(f32,f32),
+    Adam(f32, f32),
 }
 
 #[derive(Debug)]

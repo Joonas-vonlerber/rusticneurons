@@ -1,10 +1,9 @@
-use nalgebra::DVector as vector;
-use std::{collections::VecDeque, f32};
-use rand::{thread_rng,seq::SliceRandom};
 use super::generating_and_testing::*;
 use super::loss_and_activation_functions::*;
 use super::types_and_errors::*;
-
+use nalgebra::DVector as vector;
+use rand::{seq::SliceRandom, thread_rng};
+use std::{collections::VecDeque, f32};
 
 impl NeuralNetwork {
     pub fn forward_phase(&mut self, inp: &vector<f32>) -> Layer {
@@ -33,11 +32,7 @@ impl NeuralNetwork {
         }
     }
 
-    fn backward_phase(
-        &self,
-        forward: &Layer,
-        expected: &vector<f32>,
-    ) -> NeuralNetwork {
+    fn backward_phase(&self, forward: &Layer, expected: &vector<f32>) -> NeuralNetwork {
         let mut gradient = self.clone().clear();
         let mut iterator = self
             .neural_network
@@ -46,26 +41,22 @@ impl NeuralNetwork {
             .rev();
         let last_element = iterator.next().unwrap();
         let last_node = last_element.0;
-        let mut errorterm: vector<f32> = activation_function(&self.final_activation, &forward.values, true).calculate_errorterm(&loss_function(
-            &self.loss_function,
-            &forward.outputs,
-            expected,
-            true,
-        ));
-        
+        let mut errorterm: vector<f32> =
+            activation_function(&self.final_activation, &forward.values, true).calculate_errorterm(
+                &loss_function(&self.loss_function, &forward.outputs, expected, true),
+            );
+
         last_element.1.biases = errorterm.clone();
         last_element.1.weights = &errorterm * last_node.outputs.transpose();
         let mut dotvec: vector<f32> = last_node.weights.transpose() * errorterm;
-        errorterm = activation_function(&self.hidden_activation, &last_node.values, true).calculate_errorterm(&dotvec);
+        errorterm = activation_function(&self.hidden_activation, &last_node.values, true)
+            .calculate_errorterm(&dotvec);
         for (neural_layer, gradient_layer) in iterator {
             gradient_layer.biases = errorterm.clone();
             gradient_layer.weights = &errorterm * neural_layer.outputs.transpose();
             dotvec = neural_layer.weights.transpose() * errorterm;
-            errorterm = activation_function(
-                &self.hidden_activation,
-                &neural_layer.values,
-                true,
-            ).calculate_errorterm(&dotvec);
+            errorterm = activation_function(&self.hidden_activation, &neural_layer.values, true)
+                .calculate_errorterm(&dotvec);
         }
         gradient
     }
@@ -73,7 +64,7 @@ impl NeuralNetwork {
     pub fn minibatch(
         mut self,
         chunk_size: usize,
-        data: &mut Vec<(&vector<f32>,&vector<f32>)>,
+        data: &mut Vec<(&vector<f32>, &vector<f32>)>,
         learning_rate: f32,
         epochs: u32,
     ) -> NeuralNetwork {
@@ -81,7 +72,7 @@ impl NeuralNetwork {
         let mut forward: Layer;
         let mut backward: NeuralNetwork;
         let mut loss_buffer: VecDeque<f32> = VecDeque::with_capacity(9);
-        let learn_scalar = -learning_rate/chunk_size as f32;
+        let learn_scalar = -learning_rate / chunk_size as f32;
         for epoch in 0..epochs {
             data.shuffle(&mut thread_rng());
             for chunk in data.chunks_exact(chunk_size) {
@@ -102,21 +93,24 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!(
-                "epoch {} is done, loss: {}",
-                epoch,
-                loss(&mut self, data)
-            );
+            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
         }
         self
     }
-    pub fn momentum(mut self, chunk_size: usize, data: &mut Vec<(&vector<f32>,&vector<f32>)>, learning_rate: f32, momentum: f32, epochs: u32) -> NeuralNetwork{
+    pub fn momentum(
+        mut self,
+        chunk_size: usize,
+        data: &mut Vec<(&vector<f32>, &vector<f32>)>,
+        learning_rate: f32,
+        momentum: f32,
+        epochs: u32,
+    ) -> NeuralNetwork {
         let mut gradient: NeuralNetwork = self.clone().clear();
         let mut forward: Layer;
         let mut backward: NeuralNetwork;
         let mut loss_buffer: VecDeque<f32> = VecDeque::with_capacity(9);
         let mut weight_update: NeuralNetwork = self.clone().clear();
-        let learn_scalar = -learning_rate/chunk_size as f32;
+        let learn_scalar = -learning_rate / chunk_size as f32;
         for epoch in 0..epochs {
             data.shuffle(&mut thread_rng());
             for chunk in data.chunks_exact(chunk_size) {
@@ -125,7 +119,7 @@ impl NeuralNetwork {
                     backward = self.backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
                 }
-                weight_update = &(&weight_update*&momentum) + &(&gradient * &learn_scalar);
+                weight_update = &(&weight_update * &momentum) + &(&gradient * &learn_scalar);
                 self = &self + &weight_update;
                 gradient = gradient.clear();
             }
@@ -137,30 +131,34 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!(
-                "epoch {} is done, loss: {}",
-                epoch,
-                loss(&mut self, data)
-            );
+            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
         }
         self
     }
-    pub fn nesterov_momentum(mut self, chunk_size: usize, data: &mut Vec<(&vector<f32>,&vector<f32>)>, learning_rate: f32, momentum: f32, epochs: u32) -> NeuralNetwork{
+    pub fn nesterov_momentum(
+        mut self,
+        chunk_size: usize,
+        data: &mut Vec<(&vector<f32>, &vector<f32>)>,
+        learning_rate: f32,
+        momentum: f32,
+        epochs: u32,
+    ) -> NeuralNetwork {
         let mut gradient: NeuralNetwork = self.clone().clear();
         let mut forward: Layer;
         let mut backward: NeuralNetwork;
         let mut loss_buffer: VecDeque<f32> = VecDeque::with_capacity(9);
         let mut weight_update: NeuralNetwork = self.clone().clear();
-        let learn_scalar = -learning_rate/chunk_size as f32;
+        let learn_scalar = -learning_rate / chunk_size as f32;
         for epoch in 0..epochs {
             data.shuffle(&mut thread_rng());
             for chunk in data.chunks_exact(chunk_size) {
                 for (input, expect) in chunk.iter() {
                     forward = self.forward_phase(input);
-                    backward = (&self + &(&weight_update * &-momentum)).backward_phase(&forward, expect);
+                    backward =
+                        (&self + &(&weight_update * &-momentum)).backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
                 }
-                weight_update = &(&weight_update*&momentum) + &(&gradient * &learn_scalar);
+                weight_update = &(&weight_update * &momentum) + &(&gradient * &learn_scalar);
                 self = &self + &weight_update;
                 gradient = gradient.clear();
             }
@@ -172,15 +170,17 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!(
-                "epoch {} is done, loss: {}",
-                epoch,
-                loss(&mut self, data)
-            );
+            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
         }
         self
     }
-    pub fn adagrad(mut self, chunk_size: usize, data: &mut Vec<(&vector<f32>,&vector<f32>)>, learning_rate: f32, epochs: u32) -> NeuralNetwork{
+    pub fn adagrad(
+        mut self,
+        chunk_size: usize,
+        data: &mut Vec<(&vector<f32>, &vector<f32>)>,
+        learning_rate: f32,
+        epochs: u32,
+    ) -> NeuralNetwork {
         let mut gradient: NeuralNetwork = self.clone().clear();
         let mut forward: Layer;
         let mut backward: NeuralNetwork;
@@ -196,8 +196,10 @@ impl NeuralNetwork {
                     backward = self.backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
                 }
-                squared_gradient_sum = &squared_gradient_sum + &gradient.map(&|i:f32| i*i);
-                weight_update = &squared_gradient_sum.map(&|param| learn_scalar / (param.sqrt()+f32::EPSILON)) * &gradient;
+                squared_gradient_sum = &squared_gradient_sum + &gradient.map(&|i: f32| i * i);
+                weight_update = &squared_gradient_sum
+                    .map(&|param| learn_scalar / (param.sqrt() + f32::EPSILON))
+                    * &gradient;
                 self = &self + &weight_update;
                 gradient = gradient.clear();
             }
@@ -209,11 +211,7 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!(
-                "epoch {} is done, loss: {}",
-                epoch,
-                loss(&mut self, data)
-            );
+            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
         }
         self
     }
@@ -222,7 +220,7 @@ impl NeuralNetwork {
         mut self,
         chunk_size: usize,
         decay: f32,
-        data: &mut Vec<(&vector<f32>,&vector<f32>)>,
+        data: &mut Vec<(&vector<f32>, &vector<f32>)>,
         epochs: u32,
     ) -> NeuralNetwork {
         let mut forward: Layer;
@@ -240,9 +238,14 @@ impl NeuralNetwork {
                     backward = self.backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
                 }
-                squared_gradient_sum = &(&squared_gradient_sum * &decay) + &(&gradient.map(&|param| param.powi(2)) * &(1.0-decay));
-                weight_update = &(&(squared_weight_update_sum.map(&|param| (param+f32::EPSILON).sqrt())) * &(squared_gradient_sum.map(&|param| 1.0/(param+f32::EPSILON).sqrt()))) * &gradient;
-                squared_weight_update_sum = &(&squared_weight_update_sum * &decay) + &(&weight_update.map(&|param| param.powi(2)) * &(1.0-decay));
+                squared_gradient_sum = &(&squared_gradient_sum * &decay)
+                    + &(&gradient.map(&|param| param.powi(2)) * &(1.0 - decay));
+                weight_update = &(&(squared_weight_update_sum
+                    .map(&|param| (param + f32::EPSILON).sqrt()))
+                    * &(squared_gradient_sum.map(&|param| 1.0 / (param + f32::EPSILON).sqrt())))
+                    * &gradient;
+                squared_weight_update_sum = &(&squared_weight_update_sum * &decay)
+                    + &(&weight_update.map(&|param| param.powi(2)) * &(1.0 - decay));
                 self = &self + &(&weight_update * &-1.0);
                 gradient = gradient.clear();
             }
@@ -254,21 +257,24 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!(
-                "epoch {} is done, loss: {}",
-                epoch,
-                loss(&mut self, data)
-            );
+            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
         }
         self
     }
-    pub fn rmsprop(mut self, chunk_size: usize, decay: f32,data: &mut Vec<(&vector<f32>,&vector<f32>)>, learning_rate: f32, epochs: u32) -> NeuralNetwork{
+    pub fn rmsprop(
+        mut self,
+        chunk_size: usize,
+        decay: f32,
+        data: &mut Vec<(&vector<f32>, &vector<f32>)>,
+        learning_rate: f32,
+        epochs: u32,
+    ) -> NeuralNetwork {
         let mut gradient: NeuralNetwork = self.clone().clear();
         let mut forward: Layer;
         let mut backward: NeuralNetwork;
         let mut loss_buffer: VecDeque<f32> = VecDeque::with_capacity(9);
         let mut squared_gradient_sum: NeuralNetwork = self.clone().clear();
-        let learn_scalar = -learning_rate/chunk_size as f32;
+        let learn_scalar = -learning_rate / chunk_size as f32;
         for epoch in 0..epochs {
             data.shuffle(&mut thread_rng());
             for chunk in data.chunks_exact(chunk_size) {
@@ -277,9 +283,13 @@ impl NeuralNetwork {
                     backward = self.backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
                 }
-                squared_gradient_sum = &(&squared_gradient_sum * &decay) + &(&gradient.map(&|param| param*param) * &(1.0-decay));
-                
-                self = &self + &(&(&gradient * &squared_gradient_sum.map(&|param| 1.0/(param.sqrt()+f32::EPSILON))) * &learn_scalar);
+                squared_gradient_sum = &(&squared_gradient_sum * &decay)
+                    + &(&gradient.map(&|param| param * param) * &(1.0 - decay));
+
+                self = &self
+                    + &(&(&gradient
+                        * &squared_gradient_sum.map(&|param| 1.0 / (param.sqrt() + f32::EPSILON)))
+                        * &learn_scalar);
                 gradient = gradient.clear();
             }
             loss_buffer.push_back(loss(&mut self, data));
@@ -290,15 +300,19 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!(
-                "epoch {} is done, loss: {}",
-                epoch,
-                loss(&mut self, data)
-            );
+            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
         }
         self
     }
-    pub fn adam(mut self, chunk_size: usize, data: &mut Vec<(&vector<f32>,&vector<f32>)>, beta1: f32, beta2: f32, learning_rate: f32, epochs: u32) -> NeuralNetwork {
+    pub fn adam(
+        mut self,
+        chunk_size: usize,
+        data: &mut Vec<(&vector<f32>, &vector<f32>)>,
+        beta1: f32,
+        beta2: f32,
+        learning_rate: f32,
+        epochs: u32,
+    ) -> NeuralNetwork {
         let mut gradient: NeuralNetwork = self.clone().clear();
         let mut forward: Layer;
         let mut backward: NeuralNetwork;
@@ -317,13 +331,16 @@ impl NeuralNetwork {
                     backward = self.backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
                 }
-                first_moment = &(&first_moment * &beta1) + &(&gradient * &(1.0-beta1));
-                second_moment = &(&second_moment * &beta2) + &(&gradient.map(&|param| param*param) * &(1.0-beta2));   
+                first_moment = &(&first_moment * &beta1) + &(&gradient * &(1.0 - beta1));
+                second_moment = &(&second_moment * &beta2)
+                    + &(&gradient.map(&|param| param * param) * &(1.0 - beta2));
                 norm_beta_1 *= beta1;
                 norm_beta_2 *= beta2;
-                first_moment_norm = &first_moment * &(1.0/(1.0-norm_beta_1));
-                second_moment_norm = &second_moment * &(1.0/(1.0-norm_beta_2)); 
-                self = &self + &(&(&first_moment_norm * &-learning_rate) * &(second_moment_norm.map(&|param| 1.0/(param.sqrt() + f32::EPSILON))));
+                first_moment_norm = &first_moment * &(1.0 / (1.0 - norm_beta_1));
+                second_moment_norm = &second_moment * &(1.0 / (1.0 - norm_beta_2));
+                self = &self
+                    + &(&(&first_moment_norm * &-learning_rate)
+                        * &(second_moment_norm.map(&|param| 1.0 / (param.sqrt() + f32::EPSILON))));
                 gradient = gradient.clear();
             }
             loss_buffer.push_back(loss(&mut self, data));
@@ -334,15 +351,16 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!(
-                "epoch {} is done, loss: {}",
-                epoch,
-                loss(&mut self, data)
-            );
+            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
         }
         self
     }
-    pub fn train(self, data: &mut Vec<(&vector<f32>,&vector<f32>)>, learning_rate: f32, epochs: u32) -> NeuralNetwork {
+    pub fn train(
+        self,
+        data: &mut Vec<(&vector<f32>, &vector<f32>)>,
+        learning_rate: f32,
+        epochs: u32,
+    ) -> NeuralNetwork {
         let chunk_size = match self.gradient_decent {
             GradientDecentType::Stochastic => 1,
             GradientDecentType::Batch => data.len(),
@@ -350,12 +368,20 @@ impl NeuralNetwork {
         };
         match self.optimizer {
             Optimizer::SGD => self.minibatch(chunk_size, data, learning_rate, epochs),
-            Optimizer::Momentum(momentum) => self.momentum(chunk_size, data, learning_rate, momentum, epochs),
-            Optimizer::NstMomentum(momentum) => self.nesterov_momentum(chunk_size, data, learning_rate, momentum, epochs),
+            Optimizer::Momentum(momentum) => {
+                self.momentum(chunk_size, data, learning_rate, momentum, epochs)
+            }
+            Optimizer::NstMomentum(momentum) => {
+                self.nesterov_momentum(chunk_size, data, learning_rate, momentum, epochs)
+            }
             Optimizer::AdaGrad => self.adagrad(chunk_size, data, learning_rate, epochs),
             Optimizer::AdaDelta(decay) => self.adadelta(chunk_size, decay, data, epochs),
-            Optimizer::RMSprop(decay) => self.rmsprop(chunk_size, decay, data, learning_rate, epochs),
-            Optimizer::Adam(beta1, beta2) => self.adam(chunk_size, data, beta1, beta2, learning_rate, epochs),
+            Optimizer::RMSprop(decay) => {
+                self.rmsprop(chunk_size, decay, data, learning_rate, epochs)
+            }
+            Optimizer::Adam(beta1, beta2) => {
+                self.adam(chunk_size, data, beta1, beta2, learning_rate, epochs)
+            }
         }
     }
 }
