@@ -7,5 +7,7 @@ edition = "2021"
 
 [dependencies]
 neural_network_lib = {path = '../Neural_network_lib'}
-neural_network_macro_lib = {path = '../Neural_network_macro_lib'}
-nalgebra = '0.32.2'
+# neural_network_macro_lib = {path = '../Neural_network_macro_lib'} i will save this, if I implement macros :D
+nalgebra = {version = '0.32.2', features = ["rand"]}
+statrs = '0.16.0'
+rand = '0.8.5'

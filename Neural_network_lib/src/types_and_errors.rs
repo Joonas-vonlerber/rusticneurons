@@ -22,6 +22,7 @@ pub struct NeuralNetwork {
     pub hidden_activation: ActivationFunction,
     pub gradient_decent: GradientDecentType,
     pub optimizer: Optimizer,
+    pub dropout: Dropout,
 }
 
 impl Default for Layer {
@@ -95,6 +96,7 @@ impl NeuralNetwork {
             hidden_activation: self.hidden_activation,
             gradient_decent: self.gradient_decent,
             optimizer: self.optimizer,
+            dropout: self.dropout,
         }
     }
 }
@@ -113,6 +115,7 @@ impl<'a, 'b> Add<&'b NeuralNetwork> for &'a NeuralNetwork {
             hidden_activation: self.hidden_activation,
             gradient_decent: self.gradient_decent,
             optimizer: self.optimizer,
+            dropout: self.dropout,
         }
     }
 }
@@ -132,6 +135,7 @@ impl Mul<&NeuralNetwork> for &NeuralNetwork {
             hidden_activation: self.hidden_activation,
             gradient_decent: self.gradient_decent,
             optimizer: self.optimizer,
+            dropout: self.dropout,
         }
     }
 }
@@ -146,6 +150,7 @@ impl<'a, 'b> Mul<&'b f32> for &'a NeuralNetwork {
             hidden_activation: self.hidden_activation,
             gradient_decent: self.gradient_decent,
             optimizer: self.optimizer,
+            dropout: self.dropout,
         }
     }
 }
@@ -202,7 +207,19 @@ pub enum Optimizer {
     RMSprop(f32),
     Adam(f32, f32),
 }
-
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Copy)]
+pub enum Dropout {
+    NoDropout,
+    Dropout(f32),
+}
+impl Dropout {
+    pub fn get_probability(&self) -> f32 {
+        match self {
+            Self::NoDropout => 0.0,
+            Dropout::Dropout(probability) => *probability,
+        }
+    }
+}
 #[derive(Debug)]
 pub enum NeuralNetworkError {
     CostError,

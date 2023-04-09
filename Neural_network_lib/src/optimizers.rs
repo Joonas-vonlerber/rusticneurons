@@ -3,29 +3,42 @@ use super::loss_and_activation_functions::*;
 use super::types_and_errors::*;
 use nalgebra::DVector as vector;
 use rand::{seq::SliceRandom, thread_rng};
+use statrs::distribution::Bernoulli;
 use std::{collections::VecDeque, f32};
 
 impl NeuralNetwork {
-    pub fn forward_phase(&mut self, inp: &vector<f32>) -> Layer {
+    pub fn forward_phase(&mut self, inp: &vector<f32>, training: bool) -> Layer {
         self.neural_network[0].outputs = inp.clone();
         let mut iterator = self.neural_network.iter_mut();
         let mut before = iterator.next().unwrap();
+        let dropout_distirbution =
+            Bernoulli::new(1.0f64 - self.dropout.get_probability() as f64).unwrap();
+        let output_scalar: f32 = match self.dropout {
+            Dropout::NoDropout => 1.0,
+            Dropout::Dropout(probability) if !training => probability,
+            Dropout::Dropout(_) => 1.0,
+        };
         for current in iterator {
             current.values = &before.weights * &before.outputs + &before.biases;
-            current.outputs =
-                match activation_function(&self.hidden_activation, &current.values, false) {
-                    ActivationOutput::Vector(output) => output,
-                    ActivationOutput::Matrix(output) => output.diagonal(),
-                };
+            current.outputs = activation_function(&self.hidden_activation, &current.values, false)
+                .extract_vector();
+            if let Dropout::Dropout(_) = self.dropout {
+                current.outputs.component_mul_assign(
+                    &vector::from_distribution(
+                        current.outputs.len(),
+                        &dropout_distirbution,
+                        &mut thread_rng(),
+                    )
+                    .map(|elem| elem as f32),
+                );
+            }
             before = current;
         }
         let last_layer = self.neural_network.last().unwrap();
         let output = &last_layer.weights * &last_layer.outputs + &last_layer.biases;
         Layer {
-            outputs: match activation_function(&self.final_activation, &output, false) {
-                ActivationOutput::Vector(outputs) => outputs,
-                ActivationOutput::Matrix(outputs) => outputs.diagonal(),
-            },
+            outputs: activation_function(&self.final_activation, &output, false).extract_vector()
+                * output_scalar,
             values: output,
             weights: Layer::default().weights,
             biases: Layer::default().biases,
@@ -77,7 +90,7 @@ impl NeuralNetwork {
             data.shuffle(&mut thread_rng());
             for chunk in data.chunks_exact(chunk_size) {
                 for (input, expect) in chunk.iter() {
-                    forward = self.forward_phase(input);
+                    forward = self.forward_phase(input, true);
                     backward = self.backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
                 }
@@ -115,7 +128,7 @@ impl NeuralNetwork {
             data.shuffle(&mut thread_rng());
             for chunk in data.chunks_exact(chunk_size) {
                 for (input, expect) in chunk.iter() {
-                    forward = self.forward_phase(input);
+                    forward = self.forward_phase(input, true);
                     backward = self.backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
                 }
@@ -153,7 +166,7 @@ impl NeuralNetwork {
             data.shuffle(&mut thread_rng());
             for chunk in data.chunks_exact(chunk_size) {
                 for (input, expect) in chunk.iter() {
-                    forward = self.forward_phase(input);
+                    forward = self.forward_phase(input, true);
                     backward =
                         (&self + &(&weight_update * &-momentum)).backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
@@ -192,7 +205,7 @@ impl NeuralNetwork {
             data.shuffle(&mut thread_rng());
             for chunk in data.chunks_exact(chunk_size) {
                 for (input, expect) in chunk.iter() {
-                    forward = self.forward_phase(input);
+                    forward = self.forward_phase(input, true);
                     backward = self.backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
                 }
@@ -234,7 +247,7 @@ impl NeuralNetwork {
             data.shuffle(&mut thread_rng());
             for chunk in data.chunks_exact(chunk_size) {
                 for (input, expect) in chunk.iter() {
-                    forward = self.forward_phase(input);
+                    forward = self.forward_phase(input, true);
                     backward = self.backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
                 }
@@ -279,7 +292,7 @@ impl NeuralNetwork {
             data.shuffle(&mut thread_rng());
             for chunk in data.chunks_exact(chunk_size) {
                 for (input, expect) in chunk.iter() {
-                    forward = self.forward_phase(input);
+                    forward = self.forward_phase(input, true);
                     backward = self.backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
                 }
@@ -319,15 +332,13 @@ impl NeuralNetwork {
         let mut loss_buffer: VecDeque<f32> = VecDeque::with_capacity(9);
         let mut first_moment: NeuralNetwork = self.clone().clear();
         let mut second_moment: NeuralNetwork = self.clone().clear();
-        let mut first_moment_norm: NeuralNetwork;
-        let mut second_moment_norm: NeuralNetwork;
         let mut norm_beta_1: f32 = beta1;
         let mut norm_beta_2: f32 = beta2;
         for epoch in 0..epochs {
             data.shuffle(&mut thread_rng());
             for chunk in data.chunks_exact(chunk_size) {
                 for (input, expect) in chunk.iter() {
-                    forward = self.forward_phase(input);
+                    forward = self.forward_phase(input, true);
                     backward = self.backward_phase(&forward, expect);
                     gradient = &gradient + &backward;
                 }
@@ -336,11 +347,10 @@ impl NeuralNetwork {
                     + &(&gradient.map(&|param| param * param) * &(1.0 - beta2));
                 norm_beta_1 *= beta1;
                 norm_beta_2 *= beta2;
-                first_moment_norm = &first_moment * &(1.0 / (1.0 - norm_beta_1));
-                second_moment_norm = &second_moment * &(1.0 / (1.0 - norm_beta_2));
                 self = &self
-                    + &(&(&first_moment_norm * &-learning_rate)
-                        * &(second_moment_norm.map(&|param| 1.0 / (param.sqrt() + f32::EPSILON))));
+                    + &(&(&(&first_moment * &(1.0 / (1.0 - norm_beta_1))) * &-learning_rate)
+                        * &((&second_moment * &(1.0 / (1.0 - norm_beta_2)))
+                            .map(&|param| 1.0 / (param.sqrt() + f32::EPSILON))));
                 gradient = gradient.clear();
             }
             loss_buffer.push_back(loss(&mut self, data));

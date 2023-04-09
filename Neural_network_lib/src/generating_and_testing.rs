@@ -63,6 +63,7 @@ impl NeuralNetwork {
         hidden_activation: ActivationFunction,
         gradient_decent: GradientDecentType,
         optimizer: Optimizer,
+        dropout: Dropout,
     ) -> Self {
         let mut temp_neural_network: NeuralNetwork = NeuralNetwork {
             neural_network: vec![],
@@ -71,6 +72,7 @@ impl NeuralNetwork {
             hidden_activation,
             gradient_decent,
             optimizer,
+            dropout,
         };
         temp_neural_network.neural_network = dims
             .windows(2)
@@ -85,6 +87,7 @@ impl NeuralNetwork {
         hidden_activation: ActivationFunction,
         gradient_decent: GradientDecentType,
         optimizer: Optimizer,
+        dropout: Dropout,
     ) -> Self {
         let mut temp_neural_network: NeuralNetwork = NeuralNetwork {
             neural_network: vec![],
@@ -93,6 +96,7 @@ impl NeuralNetwork {
             hidden_activation,
             gradient_decent,
             optimizer,
+            dropout,
         };
         temp_neural_network.neural_network = dims
             .windows(2)
@@ -107,6 +111,7 @@ impl NeuralNetwork {
         hidden_activation: ActivationFunction,
         gradient_decent: GradientDecentType,
         optimizer: Optimizer,
+        dropout: Dropout,
     ) -> Self {
         let mut temp_neural_network: NeuralNetwork = NeuralNetwork {
             neural_network: vec![],
@@ -115,6 +120,7 @@ impl NeuralNetwork {
             hidden_activation,
             gradient_decent,
             optimizer,
+            dropout,
         };
         temp_neural_network.neural_network = dims
             .windows(2)
@@ -129,6 +135,7 @@ impl NeuralNetwork {
         hidden_activation: ActivationFunction,
         gradient_decent: GradientDecentType,
         optimizer: Optimizer,
+        dropout: Dropout,
     ) -> Self {
         let mut temp_neural_network = NeuralNetwork {
             neural_network: vec![],
@@ -137,6 +144,7 @@ impl NeuralNetwork {
             hidden_activation,
             gradient_decent,
             optimizer,
+            dropout,
         };
         let mut distribution = Normal::new(0.0, (1.0 / dims[0] as f64).sqrt()).unwrap();
         for dim in dims.windows(2) {
@@ -171,7 +179,7 @@ pub fn loss_mnist(
     let mut loss: f64 = 0.0;
     let mut got_right: u16 = 0;
     for (input, expected) in test_data.iter() {
-        forward = neural_network.forward_phase(input).outputs;
+        forward = neural_network.forward_phase(input, false).outputs;
         loss +=
             loss_function(&neural_network.loss_function, &forward, expected, false).sum() as f64;
         if forward.imax() == expected.imax() {
@@ -191,7 +199,7 @@ pub fn loss(
     let mut forward: vector<f32>;
     let mut loss: f32 = 0.0;
     for (input, expected) in test_data.iter() {
-        forward = neural_network.forward_phase(input).outputs;
+        forward = neural_network.forward_phase(input, false).outputs;
         loss += loss_function(&neural_network.loss_function, &forward, expected, false).sum();
     }
     loss / test_data.len() as f32
@@ -209,11 +217,16 @@ pub fn print_number_and_test(neural_network: &mut NeuralNetwork) {
         data: data[n].clone(),
     };
     println!("{}", image);
-    println!("{}", neural_network.forward_phase(&data[n].clone()).outputs);
     println!(
         "{}",
         neural_network
-            .forward_phase(&data[n].clone())
+            .forward_phase(&data[n].clone(), false)
+            .outputs
+    );
+    println!(
+        "{}",
+        neural_network
+            .forward_phase(&data[n].clone(), false)
             .outputs
             .imax()
     );

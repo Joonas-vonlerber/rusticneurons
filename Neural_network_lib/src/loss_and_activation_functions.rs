@@ -11,14 +11,14 @@ pub enum ActivationOutput {
 impl ActivationOutput {
     pub fn extract_matrix(self) -> matrix<f32> {
         match self {
-            ActivationOutput::Vector(_) => panic!("called extract_matrix on type ActivationOutput::Matrix"),
+            ActivationOutput::Vector(vector) => matrix::from_diagonal(&vector),
             ActivationOutput::Matrix(matrix) => matrix,
         }
     }
     pub fn extract_vector(self) -> vector<f32> {
         match self {
             ActivationOutput::Vector(vector) => vector,
-            ActivationOutput::Matrix(_) => panic!("called extract_vector on type ActivationOutput::Matrix")
+            ActivationOutput::Matrix(matrix) => matrix.diagonal(), 
         }
     }
     pub fn calculate_errorterm(&self, rhs: &vector<f32>) -> vector<f32> {
