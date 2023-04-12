@@ -1,9 +1,6 @@
 use nalgebra::{DMatrix as matrix, DVector as vector};
-
 use serde::{Deserialize, Serialize};
-
 use std::{
-    default::Default,
     fmt::Display,
     ops::{Add, Mul},
 };
@@ -13,6 +10,7 @@ pub struct Layer {
     pub outputs: vector<f32>,
     pub weights: matrix<f32>,
     pub biases: vector<f32>,
+    pub activation_function: ActivationFunction,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NeuralNetwork {
@@ -25,17 +23,6 @@ pub struct NeuralNetwork {
     pub dropout: Dropout,
 }
 
-impl Default for Layer {
-    fn default() -> Self {
-        Layer {
-            values: vector::zeros(1),
-            outputs: vector::zeros(1),
-            weights: matrix::zeros(1, 1),
-            biases: vector::zeros(1),
-        }
-    }
-}
-
 impl<'a, 'b> Add<&'b Layer> for &'a Layer {
     type Output = Layer;
     fn add(self, rhs: &'b Layer) -> Layer {
@@ -44,6 +31,7 @@ impl<'a, 'b> Add<&'b Layer> for &'a Layer {
             outputs: &self.outputs + &rhs.outputs,
             weights: &self.weights + &rhs.weights,
             biases: &self.biases + &rhs.biases,
+            activation_function: self.activation_function.clone(),
         }
     }
 }
@@ -56,6 +44,7 @@ impl<'a, 'b> Mul<&'b f32> for &'a Layer {
             outputs: &self.outputs * *rhs,
             weights: &self.weights * *rhs,
             biases: &self.biases * *rhs,
+            activation_function: self.activation_function.clone(),
         }
     }
 }
@@ -68,6 +57,7 @@ impl Mul<&Layer> for &Layer {
             outputs: self.outputs.component_mul(&rhs.outputs),
             weights: self.weights.component_mul(&rhs.weights),
             biases: self.biases.component_mul(&rhs.biases),
+            activation_function: self.activation_function.clone(),
         }
     }
 }
@@ -89,17 +79,28 @@ impl NeuralNetwork {
                     outputs: layer.outputs.map(f),
                     weights: layer.weights.map(f),
                     biases: layer.biases.map(f),
+                    activation_function: layer.activation_function.clone(),
                 })
                 .collect(),
-            loss_function: self.loss_function,
-            final_activation: self.final_activation,
-            hidden_activation: self.hidden_activation,
-            gradient_decent: self.gradient_decent,
-            optimizer: self.optimizer,
-            dropout: self.dropout,
+            loss_function: self.loss_function.clone(),
+            final_activation: self.final_activation.clone(),
+            hidden_activation: self.hidden_activation.clone(),
+            gradient_decent: self.gradient_decent.clone(),
+            optimizer: self.optimizer.clone(),
+            dropout: self.dropout.clone(),
         }
     }
+    pub fn shape(&self) -> Vec<usize> {
+        let mut shapes: Vec<usize> = self
+            .neural_network
+            .iter()
+            .map(|layer| layer.weights.shape().1)
+            .collect();
+        shapes.push(self.neural_network.last().unwrap().weights.shape().0);
+        shapes
+    }
 }
+
 impl<'a, 'b> Add<&'b NeuralNetwork> for &'a NeuralNetwork {
     type Output = NeuralNetwork;
     fn add(self, rhs: &'b NeuralNetwork) -> NeuralNetwork {
@@ -110,12 +111,12 @@ impl<'a, 'b> Add<&'b NeuralNetwork> for &'a NeuralNetwork {
                 .zip(rhs.neural_network.iter())
                 .map(|(i, j)| i + j)
                 .collect(),
-            loss_function: self.loss_function,
-            final_activation: self.final_activation,
-            hidden_activation: self.hidden_activation,
-            gradient_decent: self.gradient_decent,
-            optimizer: self.optimizer,
-            dropout: self.dropout,
+            loss_function: self.loss_function.clone(),
+            final_activation: self.final_activation.clone(),
+            hidden_activation: self.hidden_activation.clone(),
+            gradient_decent: self.gradient_decent.clone(),
+            optimizer: self.optimizer.clone(),
+            dropout: self.dropout.clone(),
         }
     }
 }
@@ -130,12 +131,12 @@ impl Mul<&NeuralNetwork> for &NeuralNetwork {
                 .zip(rhs.neural_network.iter())
                 .map(|(layer1, layer2)| layer1 * layer2)
                 .collect(),
-            loss_function: self.loss_function,
-            final_activation: self.final_activation,
-            hidden_activation: self.hidden_activation,
-            gradient_decent: self.gradient_decent,
-            optimizer: self.optimizer,
-            dropout: self.dropout,
+            loss_function: self.loss_function.clone(),
+            final_activation: self.final_activation.clone(),
+            hidden_activation: self.hidden_activation.clone(),
+            gradient_decent: self.gradient_decent.clone(),
+            optimizer: self.optimizer.clone(),
+            dropout: self.dropout.clone(),
         }
     }
 }
@@ -145,42 +146,23 @@ impl<'a, 'b> Mul<&'b f32> for &'a NeuralNetwork {
     fn mul(self, rhs: &'b f32) -> Self::Output {
         NeuralNetwork {
             neural_network: self.neural_network.iter().map(|i| i * rhs).collect(),
-            loss_function: self.loss_function,
-            final_activation: self.final_activation,
-            hidden_activation: self.hidden_activation,
-            gradient_decent: self.gradient_decent,
-            optimizer: self.optimizer,
-            dropout: self.dropout,
+            loss_function: self.loss_function.clone(),
+            final_activation: self.final_activation.clone(),
+            hidden_activation: self.hidden_activation.clone(),
+            gradient_decent: self.gradient_decent.clone(),
+            optimizer: self.optimizer.clone(),
+            dropout: self.dropout.clone(),
         }
     }
 }
 
-// impl Div<&NeuralNetwork> for &NeuralNetwork {
-//     type Output = NeuralNetwork;
-//     fn div(self, rhs: &NeuralNetwork) -> Self::Output {
-//         NeuralNetwork {
-//             neural_network: self.neural_network.iter().zip(rhs.neural_network.iter()).map(|(layer1, layer2)|
-//         Layer {
-//             values: layer1.values.component_div(&layer2.values),
-//             outputs: layer1.outputs.component_div(&layer2.outputs),
-//             weights: layer1.weights.component_div(&layer2.weights),
-//             biases: layer1.biases.component_div(&layer2.biases),
-//         }).collect(),
-//         loss_function: self.loss_function,
-//         final_activation: self.final_activation,
-//         hidden_activation: self.hidden_activation,
-//         gradient_decent: self.gradient_decent,
-
-//         }
-//     }
-// }
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Copy)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LossFunction {
     MSE,
+    MAE,
     CrossEntropy,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Copy)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ActivationFunction {
     ReLU,
     PReLU(f32),
@@ -190,14 +172,17 @@ pub enum ActivationFunction {
     Linear,
     Tanh,
     GELU,
+    ELU(f32),
+    SoftPlus,
+    LayerByLayer(Vec<ActivationFunction>),
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Copy)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GradientDecentType {
     Stochastic,
     MiniBatch(usize),
     Batch,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Copy)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Optimizer {
     SGD,
     Momentum(f32),
@@ -207,7 +192,7 @@ pub enum Optimizer {
     RMSprop(f32),
     Adam(f32, f32),
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Copy)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Dropout {
     NoDropout,
     Dropout(f32),

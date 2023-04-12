@@ -1,5 +1,5 @@
-use crate::types_and_errors::NeuralNetwork;
 use super::types_and_errors::Layer;
+use crate::types_and_errors::NeuralNetwork;
 use nalgebra::DVector;
 use std::fmt;
 
@@ -26,13 +26,12 @@ impl fmt::Display for NumberImage {
         write!(f, "{}", row_vec.join("\n"))
     }
 }
-
 impl fmt::Display for Layer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "values: {} outputs: {} weights: {} biases: {}",
-            self.values, self.outputs, self.weights, self.biases
+            "values: {} outputs: {} weights: {} biases: {} activation function: {:#?}",
+            self.values, self.outputs, self.weights, self.biases, self.activation_function
         )
     }
 }

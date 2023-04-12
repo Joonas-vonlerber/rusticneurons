@@ -1,6 +1,6 @@
-use super::generating_and_testing::*;
-use super::loss_and_activation_functions::*;
-use super::types_and_errors::*;
+use crate::loss_and_activation_functions::*;
+use crate::types_and_errors::*;
+use nalgebra::DMatrix;
 use nalgebra::DVector as vector;
 use rand::{seq::SliceRandom, thread_rng};
 use statrs::distribution::Bernoulli;
@@ -40,8 +40,9 @@ impl NeuralNetwork {
             outputs: activation_function(&self.final_activation, &output, false).extract_vector()
                 * output_scalar,
             values: output,
-            weights: Layer::default().weights,
-            biases: Layer::default().biases,
+            weights: DMatrix::zeros(1, 1),
+            biases: vector::zeros(1),
+            activation_function: ActivationFunction::Sigmoid,
         }
     }
 
@@ -52,18 +53,25 @@ impl NeuralNetwork {
             .iter()
             .zip(gradient.neural_network.iter_mut())
             .rev();
-        let last_element = iterator.next().unwrap();
-        let last_node = last_element.0;
+        let (last_neural, last_gradient) = iterator.next().unwrap();
         let mut errorterm: vector<f32> =
-            activation_function(&self.final_activation, &forward.values, true).calculate_errorterm(
-                &loss_function(&self.loss_function, &forward.outputs, expected, true),
-            );
+            activation_function(&last_neural.activation_function, &forward.values, true)
+                .calculate_errorterm(&loss_function(
+                    &self.loss_function,
+                    &forward.outputs,
+                    expected,
+                    true,
+                ));
 
-        last_element.1.biases = errorterm.clone();
-        last_element.1.weights = &errorterm * last_node.outputs.transpose();
-        let mut dotvec: vector<f32> = last_node.weights.transpose() * errorterm;
-        errorterm = activation_function(&self.hidden_activation, &last_node.values, true)
-            .calculate_errorterm(&dotvec);
+        last_gradient.biases = errorterm.clone();
+        last_gradient.weights = &errorterm * last_neural.outputs.transpose();
+        let mut dotvec: vector<f32> = last_neural.weights.transpose() * errorterm;
+        errorterm = activation_function(
+            &self.neural_network[self.neural_network.len() - 2usize].activation_function,
+            &last_neural.values,
+            true,
+        )
+        .calculate_errorterm(&dotvec);
         for (neural_layer, gradient_layer) in iterator {
             gradient_layer.biases = errorterm.clone();
             gradient_layer.weights = &errorterm * neural_layer.outputs.transpose();
@@ -98,7 +106,7 @@ impl NeuralNetwork {
                 self = &self + &gradient;
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, data));
+            loss_buffer.push_back(self.loss(data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -106,7 +114,7 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
+            println!("epoch {} is done, loss: {}", epoch, self.loss(data));
         }
         self
     }
@@ -136,7 +144,7 @@ impl NeuralNetwork {
                 self = &self + &weight_update;
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, data));
+            loss_buffer.push_back(self.loss(data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -144,7 +152,7 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
+            println!("epoch {} is done, loss: {}", epoch, self.loss(data));
         }
         self
     }
@@ -175,7 +183,7 @@ impl NeuralNetwork {
                 self = &self + &weight_update;
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, data));
+            loss_buffer.push_back(self.loss(data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -183,7 +191,7 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
+            println!("epoch {} is done, loss: {}", epoch, self.loss(data));
         }
         self
     }
@@ -216,7 +224,7 @@ impl NeuralNetwork {
                 self = &self + &weight_update;
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, data));
+            loss_buffer.push_back(self.loss(data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -224,7 +232,7 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
+            println!("epoch {} is done, loss: {}", epoch, self.loss(data));
         }
         self
     }
@@ -262,7 +270,7 @@ impl NeuralNetwork {
                 self = &self + &(&weight_update * &-1.0);
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, data));
+            loss_buffer.push_back(self.loss(data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -270,7 +278,7 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
+            println!("epoch {} is done, loss: {}", epoch, self.loss(data));
         }
         self
     }
@@ -305,7 +313,7 @@ impl NeuralNetwork {
                         * &learn_scalar);
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, data));
+            loss_buffer.push_back(self.loss(data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -313,7 +321,7 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
+            println!("epoch {} is done, loss: {}", epoch, self.loss(data));
         }
         self
     }
@@ -353,7 +361,7 @@ impl NeuralNetwork {
                             .map(&|param| 1.0 / (param.sqrt() + f32::EPSILON))));
                 gradient = gradient.clear();
             }
-            loss_buffer.push_back(loss(&mut self, data));
+            loss_buffer.push_back(self.loss(data));
             if epoch > 8 {
                 if standard_deviation(&loss_buffer) < 0.0001 {
                     eprintln!("{}", NeuralNetworkError::CostError);
@@ -361,7 +369,7 @@ impl NeuralNetwork {
                 }
                 loss_buffer.pop_front();
             }
-            println!("epoch {} is done, loss: {}", epoch, loss(&mut self, data));
+            println!("epoch {} is done, loss: {}", epoch, self.loss(data));
         }
         self
     }
