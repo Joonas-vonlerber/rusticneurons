@@ -12,21 +12,6 @@ use rand::{
     thread_rng,
 };
 use statrs::distribution::Normal;
-enum ActivationIterator<'a> {
-    //just ignore this shit
-    LayerByLayer(
-        iter::Chain<
-            std::slice::Iter<'a, ActivationFunction>,
-            std::iter::Once<&'a ActivationFunction>,
-        >,
-    ),
-    Constant(
-        iter::Chain<
-            std::iter::Take<std::iter::Repeat<&'a ActivationFunction>>,
-            iter::Once<&'a ActivationFunction>,
-        >,
-    ),
-}
 
 impl Layer {
     fn zeros(from_dim: usize, to_dim: usize, activation_function: &ActivationFunction) -> Self {
@@ -126,17 +111,19 @@ impl NeuralNetwork {
         dims_len: usize,
         hidden_activation: &'a ActivationFunction,
         final_activation: &'a ActivationFunction,
-    ) -> ActivationIterator<'a> {
+    ) -> impl IntoIterator<Item = &'a ActivationFunction> {
         if let ActivationFunction::LayerByLayer(layerbylayer) = hidden_activation {
-            ActivationIterator::LayerByLayer(
-                layerbylayer.iter().chain(iter::once(final_activation)),
-            )
+            layerbylayer
+                .iter()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .chain(iter::once(final_activation))
         } else {
-            ActivationIterator::Constant(
-                iter::repeat(hidden_activation)
-                    .take(dims_len - 2usize)
-                    .chain(iter::once(final_activation)),
-            )
+            iter::repeat(hidden_activation)
+                .take(dims_len - 2usize)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .chain(iter::once(final_activation))
         }
     }
     pub fn zeros(
@@ -146,44 +133,25 @@ impl NeuralNetwork {
         hidden_activation: ActivationFunction,
         gradient_decent: GradientDecentType,
         optimizer: Optimizer,
-        dropout: Dropout,
+        // dropout: Dropout,
     ) -> Self {
         let activation_iterator = NeuralNetwork::activation_function_iterator(
             dims.len(),
             &hidden_activation,
             &final_activation,
         );
-        match activation_iterator {
-            ActivationIterator::LayerByLayer(iterator) => NeuralNetwork {
-                neural_network: dims
-                    .windows(2)
-                    .zip(iterator)
-                    .map(|(dims, activation_function)| {
-                        Layer::zeros(dims[0], dims[1], activation_function)
-                    })
-                    .collect(),
-                loss_function,
-                final_activation,
-                hidden_activation,
-                gradient_decent,
-                optimizer,
-                dropout,
-            },
-            ActivationIterator::Constant(iterator) => NeuralNetwork {
-                neural_network: dims
-                    .windows(2)
-                    .zip(iterator)
-                    .map(|(dims, activation_function)| {
-                        Layer::zeros(dims[0], dims[1], activation_function)
-                    })
-                    .collect(),
-                loss_function,
-                final_activation,
-                hidden_activation,
-                gradient_decent,
-                optimizer,
-                dropout,
-            },
+        NeuralNetwork {
+            neural_network: dims
+                .windows(2)
+                .zip(activation_iterator)
+                .map(|(dims, activation_function)| {
+                    Layer::zeros(dims[0], dims[1], activation_function)
+                })
+                .collect(),
+            loss_function,
+            gradient_decent,
+            optimizer,
+            // dropout,
         }
     }
 
@@ -194,44 +162,25 @@ impl NeuralNetwork {
         hidden_activation: ActivationFunction,
         gradient_decent: GradientDecentType,
         optimizer: Optimizer,
-        dropout: Dropout,
+        // dropout: Dropout,
     ) -> Self {
         let activation_iterator = NeuralNetwork::activation_function_iterator(
             dims.len(),
             &hidden_activation,
             &final_activation,
         );
-        match activation_iterator {
-            ActivationIterator::Constant(iterator) => NeuralNetwork {
-                neural_network: dims
-                    .windows(2)
-                    .zip(iterator)
-                    .map(|(dims, activation_function)| {
-                        Layer::uniform(dims[0], dims[1], activation_function)
-                    })
-                    .collect(),
-                loss_function,
-                final_activation,
-                hidden_activation,
-                gradient_decent,
-                optimizer,
-                dropout,
-            },
-            ActivationIterator::LayerByLayer(iterator) => NeuralNetwork {
-                neural_network: dims
-                    .windows(2)
-                    .zip(iterator)
-                    .map(|(dims, activation_function)| {
-                        Layer::uniform(dims[0], dims[1], activation_function)
-                    })
-                    .collect(),
-                loss_function,
-                final_activation,
-                hidden_activation,
-                gradient_decent,
-                optimizer,
-                dropout,
-            },
+        NeuralNetwork {
+            neural_network: dims
+                .windows(2)
+                .zip(activation_iterator)
+                .map(|(dims, activation_function)| {
+                    Layer::uniform(dims[0], dims[1], activation_function)
+                })
+                .collect(),
+            loss_function,
+            gradient_decent,
+            optimizer,
+            // dropout,
         }
     }
 
@@ -242,44 +191,25 @@ impl NeuralNetwork {
         hidden_activation: ActivationFunction,
         gradient_decent: GradientDecentType,
         optimizer: Optimizer,
-        dropout: Dropout,
+        // dropout: Dropout,
     ) -> Self {
         let activation_iterator = NeuralNetwork::activation_function_iterator(
             dims.len(),
             &hidden_activation,
             &final_activation,
         );
-        match activation_iterator {
-            ActivationIterator::Constant(iterator) => NeuralNetwork {
-                neural_network: dims
-                    .windows(2)
-                    .zip(iterator)
-                    .map(|(dims, activation_function)| {
-                        Layer::he_init(dims[0], dims[1], activation_function)
-                    })
-                    .collect(),
-                loss_function,
-                final_activation,
-                hidden_activation,
-                gradient_decent,
-                optimizer,
-                dropout,
-            },
-            ActivationIterator::LayerByLayer(iterator) => NeuralNetwork {
-                neural_network: dims
-                    .windows(2)
-                    .zip(iterator)
-                    .map(|(dims, activation_function)| {
-                        Layer::he_init(dims[0], dims[1], activation_function)
-                    })
-                    .collect(),
-                loss_function,
-                final_activation,
-                hidden_activation,
-                gradient_decent,
-                optimizer,
-                dropout,
-            },
+        NeuralNetwork {
+            neural_network: dims
+                .windows(2)
+                .zip(activation_iterator)
+                .map(|(dims, activation_function)| {
+                    Layer::he_init(dims[0], dims[1], activation_function)
+                })
+                .collect(),
+            loss_function,
+            gradient_decent,
+            optimizer,
+            // dropout,
         }
     }
     pub fn xavier_init(
@@ -289,9 +219,9 @@ impl NeuralNetwork {
         hidden_activation: ActivationFunction,
         gradient_decent: GradientDecentType,
         optimizer: Optimizer,
-        dropout: Dropout,
+        // dropout: Dropout,
     ) -> Self {
-        let activation_iterator: ActivationIterator = NeuralNetwork::activation_function_iterator(
+        let activation_iterator = NeuralNetwork::activation_function_iterator(
             dims.len(),
             &hidden_activation,
             &final_activation,
@@ -299,36 +229,19 @@ impl NeuralNetwork {
         let mut temp_neural_network = NeuralNetwork {
             neural_network: vec![],
             loss_function,
-            final_activation: final_activation.clone(),
-            hidden_activation: hidden_activation.clone(),
             gradient_decent,
             optimizer,
-            dropout,
+            // dropout,
         };
         let mut distribution = Normal::new(0.0, (1.0 / dims[0] as f64).sqrt()).unwrap();
-        match activation_iterator {
-            ActivationIterator::Constant(iterator) => {
-                for (dim, activation_function) in dims.windows(2).zip(iterator) {
-                    temp_neural_network.neural_network.push(Layer::xavier_init(
-                        dim[0],
-                        dim[1],
-                        activation_function,
-                        &distribution,
-                    ));
-                    distribution = Normal::new(0.0, (1.0 / dim[0] as f64).sqrt()).unwrap()
-                }
-            }
-            ActivationIterator::LayerByLayer(iterator) => {
-                for (dim, activation_function) in dims.windows(2).zip(iterator) {
-                    temp_neural_network.neural_network.push(Layer::xavier_init(
-                        dim[0],
-                        dim[1],
-                        activation_function,
-                        &distribution,
-                    ));
-                    distribution = Normal::new(0.0, (1.0 / dim[0] as f64).sqrt()).unwrap()
-                }
-            }
+        for (dim, activation_function) in dims.windows(2).zip(activation_iterator) {
+            temp_neural_network.neural_network.push(Layer::xavier_init(
+                dim[0],
+                dim[1],
+                activation_function,
+                &distribution,
+            ));
+            distribution = Normal::new(0.0, (1.0 / dim[0] as f64).sqrt()).unwrap()
         }
         temp_neural_network
     }
@@ -357,16 +270,11 @@ pub fn print_number_and_test(neural_network: &mut NeuralNetwork) {
         data: data[n].clone(),
     };
     println!("{}", image);
+    println!("{}", neural_network.forward_phase(&data[n].clone()).outputs);
     println!(
         "{}",
         neural_network
-            .forward_phase(&data[n].clone(), false)
-            .outputs
-    );
-    println!(
-        "{}",
-        neural_network
-            .forward_phase(&data[n].clone(), false)
+            .forward_phase(&data[n].clone())
             .outputs
             .imax()
     );

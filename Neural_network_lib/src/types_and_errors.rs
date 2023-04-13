@@ -16,11 +16,9 @@ pub struct Layer {
 pub struct NeuralNetwork {
     pub neural_network: Vec<Layer>,
     pub loss_function: LossFunction,
-    pub final_activation: ActivationFunction,
-    pub hidden_activation: ActivationFunction,
     pub gradient_decent: GradientDecentType,
     pub optimizer: Optimizer,
-    pub dropout: Dropout,
+    // pub dropout: Dropout,
 }
 
 impl<'a, 'b> Add<&'b Layer> for &'a Layer {
@@ -83,11 +81,9 @@ impl NeuralNetwork {
                 })
                 .collect(),
             loss_function: self.loss_function.clone(),
-            final_activation: self.final_activation.clone(),
-            hidden_activation: self.hidden_activation.clone(),
             gradient_decent: self.gradient_decent.clone(),
             optimizer: self.optimizer.clone(),
-            dropout: self.dropout.clone(),
+            // dropout: self.dropout.clone(),
         }
     }
     pub fn shape(&self) -> Vec<usize> {
@@ -112,11 +108,9 @@ impl<'a, 'b> Add<&'b NeuralNetwork> for &'a NeuralNetwork {
                 .map(|(i, j)| i + j)
                 .collect(),
             loss_function: self.loss_function.clone(),
-            final_activation: self.final_activation.clone(),
-            hidden_activation: self.hidden_activation.clone(),
             gradient_decent: self.gradient_decent.clone(),
             optimizer: self.optimizer.clone(),
-            dropout: self.dropout.clone(),
+            // dropout: self.dropout.clone(),
         }
     }
 }
@@ -132,11 +126,9 @@ impl Mul<&NeuralNetwork> for &NeuralNetwork {
                 .map(|(layer1, layer2)| layer1 * layer2)
                 .collect(),
             loss_function: self.loss_function.clone(),
-            final_activation: self.final_activation.clone(),
-            hidden_activation: self.hidden_activation.clone(),
             gradient_decent: self.gradient_decent.clone(),
             optimizer: self.optimizer.clone(),
-            dropout: self.dropout.clone(),
+            // dropout: self.dropout.clone(),
         }
     }
 }
@@ -147,11 +139,9 @@ impl<'a, 'b> Mul<&'b f32> for &'a NeuralNetwork {
         NeuralNetwork {
             neural_network: self.neural_network.iter().map(|i| i * rhs).collect(),
             loss_function: self.loss_function.clone(),
-            final_activation: self.final_activation.clone(),
-            hidden_activation: self.hidden_activation.clone(),
             gradient_decent: self.gradient_decent.clone(),
             optimizer: self.optimizer.clone(),
-            dropout: self.dropout.clone(),
+            // dropout: self.dropout.clone(),
         }
     }
 }
