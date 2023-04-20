@@ -48,11 +48,9 @@ fn linear(input: &vector<f32>, derivative: bool) -> ActivationOutput {
 fn sigmoid(input: &vector<f32>, derivative: bool) -> ActivationOutput {
     ActivationOutput::Vector(match derivative {
         false => input.map(|value| 1.0 / (1.0 + (-value).exp())),
-        true => sigmoid(input, false).extract_vector().component_mul(
-            &sigmoid(input, false)
-                .extract_vector()
-                .map(|value| value + 1.0),
-        ),
+        true => sigmoid(input, false)
+            .extract_vector()
+            .component_mul(&sigmoid(&-input, false).extract_vector()),
     })
 }
 fn prelu(input: &vector<f32>, alpha: &f32, derivative: bool) -> ActivationOutput {

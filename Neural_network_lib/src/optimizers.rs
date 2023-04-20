@@ -16,7 +16,7 @@ impl NeuralNetwork {
         for current in iterator {
             current.values = &before.weights * &before.outputs + &before.biases;
             current.outputs =
-                activation_function(&current.activation_function, &current.values, false)
+                activation_function(&before.activation_function, &current.values, false)
                     .extract_vector();
             // if let Dropout::Dropout(_) = self.dropout {
             //     current.outputs.component_mul_assign(
@@ -49,35 +49,30 @@ impl NeuralNetwork {
             .iter()
             .zip(gradient.neural_network.iter_mut())
             .rev();
-        let (last_neural, last_gradient) = iterator.next().unwrap();
-        let mut errorterm: vector<f32> =
-            activation_function(&last_neural.activation_function, &forward.values, true)
-                .calculate_errorterm(&loss_function(
-                    &self.loss_function,
-                    &forward.outputs,
-                    expected,
-                    true,
-                ));
-
-        last_gradient.biases = errorterm.clone();
-        last_gradient.weights = &errorterm * last_neural.outputs.transpose();
-        let mut dotvec: vector<f32> = last_neural.weights.transpose() * errorterm;
-        errorterm = activation_function(
-            &self.neural_network[self.neural_network.len() - 2usize].activation_function,
-            &last_neural.values,
+        let (last_layer_neural, last_layer_gradient) = iterator.next().unwrap();
+        let mut errorterm: vector<f32> = activation_function(
+            &last_layer_neural.activation_function,
+            &forward.values,
             true,
         )
-        .calculate_errorterm(&dotvec);
+        .calculate_errorterm(&loss_function(
+            &self.loss_function,
+            &forward.outputs,
+            expected,
+            true,
+        ));
+
+        last_layer_gradient.biases = errorterm.clone();
+        last_layer_gradient.weights = &errorterm * last_layer_neural.outputs.transpose();
+        errorterm = last_layer_neural.weights.transpose() * errorterm;
+        let mut last_values: &vector<f32> = &last_layer_neural.values;
         for (neural_layer, gradient_layer) in iterator {
+            errorterm = activation_function(&neural_layer.activation_function, last_values, true)
+                .calculate_errorterm(&errorterm);
             gradient_layer.biases = errorterm.clone();
             gradient_layer.weights = &errorterm * neural_layer.outputs.transpose();
-            dotvec = neural_layer.weights.transpose() * errorterm;
-            errorterm = activation_function(
-                &neural_layer.activation_function,
-                &neural_layer.values,
-                true,
-            )
-            .calculate_errorterm(&dotvec);
+            errorterm = neural_layer.weights.transpose() * errorterm;
+            last_values = &neural_layer.values;
         }
         gradient
     }
