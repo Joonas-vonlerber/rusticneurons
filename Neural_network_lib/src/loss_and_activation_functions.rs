@@ -38,10 +38,15 @@ impl ActivationOutput {
 
 //ACTIVATION FUNCTIONS
 
-fn linear(input: &vector<f32>, derivative: bool) -> ActivationOutput {
+fn linear(
+    input: &vector<f32>,
+    scalar: f32,
+    y_intercept: f32,
+    derivative: bool,
+) -> ActivationOutput {
     ActivationOutput::Vector(match derivative {
-        true => vector::repeat(input.len(), 1.0),
-        false => input.clone(),
+        true => vector::repeat(input.len(), scalar),
+        false => input.map(|value| scalar * value + y_intercept),
     })
 }
 
@@ -175,7 +180,10 @@ pub fn activation_function(
         ActivationFunction::LeReLU => prelu(input, &0.01, derivative),
         ActivationFunction::GELU => gelu(input, derivative),
         ActivationFunction::Sigmoid => sigmoid(input, derivative),
-        ActivationFunction::Linear => linear(input, derivative),
+        ActivationFunction::Identity => linear(input, 1.0, 0.0, derivative),
+        ActivationFunction::Linear(scalar, y_intercept) => {
+            linear(input, *scalar, *y_intercept, derivative)
+        }
         ActivationFunction::SoftMax => soft_max(input, derivative),
         ActivationFunction::Tanh => tanh(input, derivative),
         ActivationFunction::ELU(alpha) => elu(input, alpha, derivative),
