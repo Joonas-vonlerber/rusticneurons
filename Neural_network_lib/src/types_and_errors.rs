@@ -20,23 +20,7 @@ pub struct NeuralNetwork {
     pub loss_function: LossFunction,
     // pub dropout: Dropout,
 }
-/*
-you can create Neural network by calling the method **new**, which takes in the structure of the neural network as **&[[usize]]**, **initialization type**,
-**loss function** and **activation functions**.<br>
-The *initialization type* is a type, which determines the type of Normal distrubution used when initializing
-the weights and biases. Options are LeCun initialization for all activation functions, XavierGorot for tanh and sigmoid functions and HeKalming for
-linear units like ReLU, LeReLU etc.
 
-You can make a Neural network for classifying the MNIST dataset with the parametres
-```
-let mut neural_network: NeuralNetwork = NeuralNetwork::new(
-    &[784, 32, 32, 10],
-    InitializaitonType::HeKalming,
-    LossFunction::CrossEntropy,
-    ActivationFunction::SoftMax,
-    ActivationFunction::ReLU,
-);
-``` */
 impl<'a, 'b> Add<&'b Layer> for &'a Layer {
     type Output = Layer;
     fn add(self, rhs: &'b Layer) -> Layer {
@@ -76,11 +60,17 @@ impl Mul<&Layer> for &Layer {
     }
 }
 
+impl Layer {
+    pub fn sum(&self) -> f32 {
+        self.weights.sum() + self.biases.sum()
+    }
+}
+
 impl NeuralNetwork {
     pub fn clone_clear(&self) -> Self {
         self.map(&|value| (value * 0.0).abs())
     }
-    /// Creates a new Neural network by taking ownership of [self] and multiplying every element by 0.0.
+    /// Creates a new Neural network by taking a mutable reference and multiplying every element by 0.0.
     pub fn clear(&mut self) -> Self {
         self.map(&|elem| (0.0 * elem).abs())
     }
@@ -115,6 +105,12 @@ impl NeuralNetwork {
             .collect();
         shapes.push(self.neural_network.last().unwrap().weights.shape().0);
         shapes
+    }
+    pub fn sum(&self) -> f32 {
+        self.neural_network.iter().map(|layer| layer.sum()).sum()
+    }
+    pub fn normalize(&self) -> f32 {
+        1.0 / self.map(&|elem| elem * elem).sum().sqrt()
     }
 }
 
@@ -174,36 +170,36 @@ pub enum LossFunction {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 /// Enum to define all available activation functions
 pub enum ActivationFunction {
-    /// \[ReLU\]<https://en.wikipedia.org/wiki/Rectifier_(neural_networks)> or Rectified Linear Unit is a commonly used activation function for its benefits like faster learning.
+    /// [ReLU](https://en.wikipedia.org/wiki/Rectifier_(neural_networks)) or Rectified Linear Unit is a commonly used activation function for its benefits like faster learning.
     ReLU,
-    /// \[Parametric ReLU\]<https://en.wikipedia.org/wiki/Rectifier_(neural_networks)#Parametric_ReLU> which is a generalized version of ReLU
+    /// [Parametric ReLU](https://en.wikipedia.org/wiki/Rectifier_(neural_networks)#Parametric_ReLU) which is a generalized version of ReLU
     /// by adding a parameter of alpha which scales the input of the negative values. DOES NOT CHANGE WITH BACKPROP!! Maybe in the future ;) <br>
     PReLU(f32),
-    /// \[Leaky ReLU\]<https://en.wikipedia.org/wiki/Rectifier_(neural_networks)#Leaky_ReLU>, which solves the dying ReLU problem, but
+    /// [Leaky ReLU](https://en.wikipedia.org/wiki/Rectifier_(neural_networks)#Leaky_ReLU), which solves the dying ReLU problem, but
     /// **can** come with some learning slowdowns.
     LeReLU,
-    /// \[Sigmoid\]<https://en.wikipedia.org/wiki/Sigmoid_function> or Logistic regression was one of the most used activation functions
+    /// [Sigmoid](https://en.wikipedia.org/wiki/Sigmoid_function) or Logistic regression was one of the most used activation functions
     /// but has fallen from grace due to ReLU and other better activation function. <br>
     /// Even though it has many disadvantages compared to ReLU, it still has its uses.
     Sigmoid,
-    /// \[Softmax\]<https://en.wikipedia.org/wiki/Softmax_function> takes in a distribution of numbers and outputs a propability distribution.
+    /// [Softmax](https://en.wikipedia.org/wiki/Softmax_function) takes in a distribution of numbers and outputs a propability distribution.
     /// Softmax is a function usually used in the output-layer and most commonly used in classification type problems.
     SoftMax,
     /// Identity function outputs the input.
     Identity,
-    /// \[Linear function\]<https://en.wikipedia.org/wiki/Linear_function> operates on the input by first scaling it by a scalar, after which it adds some constant term to it.
+    /// [Linear function](https://en.wikipedia.org/wiki/Linear_function) operates on the input by first scaling it by a scalar, after which it adds some constant term to it.
     /// The first value, depicts the scalar and the second value defines a constant.
     Linear(f32, f32),
-    /// \[The hyperbolic tangent\]<(https://en.wikipedia.org/wiki/Hyperbolic_functions)> activation function.
+    /// [The hyperbolic tangent](https://en.wikipedia.org/wiki/Hyperbolic_functions) activation function.
     ///  It is similar to the sigmoid activation function but ranging from -1 to 1 instead of 0 to 1.
     Tanh,
-    /// \[Gaussian Error Linear Unit\]<https://paperswithcode.com/method/gelu> is a new type of activation function, which has been noticed to improve learning time compared to ReLU.
+    /// [Gaussian Error Linear Unit](https://paperswithcode.com/method/gelu) is a new type of activation function, which has been noticed to improve learning time compared to ReLU.
     /// It is defined using the Normal cumulative distribution function and in my code I use an approximation of the function using tanh.
     GELU,
-    /// \[Exponential Linear Unit\]<https://paperswithcode.com/method/elu> is a another type of Linear unit,
+    /// [Exponential Linear Unit](https://paperswithcode.com/method/elu) is a another type of Linear unit,
     /// which allows for negative values thus pushing mean activations closer to zero. Input is the value of alpha, which is usually 1.0.
     ELU(f32),
-    /// \[SoftPlus\]<https://paperswithcode.com/method/softplus> is a smooth approximation of ReLU<br>
+    /// [SoftPlus](https://paperswithcode.com/method/softplus) is a smooth approximation of ReLU<br>
     SoftPlus,
     /// A way of defining the activation functions for hidden layers layer by layer. The lenght of the vec should be ```neural_network.shape().len()-2```.
     LayerByLayer(Vec<ActivationFunction>),

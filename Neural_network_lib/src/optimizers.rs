@@ -88,6 +88,7 @@ impl NeuralNetwork {
             forward = neural_network.forward_phase(input);
             *self = &*self + &neural_network.backward_phase(&forward, expected);
         }
+        *self = &*self * &self.normalize();
     }
 
     fn set_gradient_nesterov(
@@ -105,6 +106,7 @@ impl NeuralNetwork {
                 + &(&*neural_network + &(momentum_network * &-decay))
                     .backward_phase(&forward, expected);
         }
+        *self = &*self * &self.normalize();
     }
     fn minibatch(
         mut self,

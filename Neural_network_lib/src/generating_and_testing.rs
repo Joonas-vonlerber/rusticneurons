@@ -77,6 +77,38 @@ impl NeuralNetwork {
                 .chain(iter::once(final_activation))
         }
     }
+    /**
+    you can create Neural network by calling the method **new**, which takes in the structure of the neural network as **&[[usize]]**, **initialization type**,
+    **loss function** and **activation functions**.<br>.
+
+    You can make a Neural network for classifying the MNIST dataset with the parametres
+    ```
+    extern crate neural_network_lib as nnl;
+    use nnl::types_and_errors::{
+        InitializationType as Init,
+        LossFunction as Loss,
+        ActivationFunction as Actf,
+    };
+
+    let mut neural_network: NeuralNetwork = NeuralNetwork::new(
+        &[784, 32, 32, 10],
+        Init::HeKalming,
+        Loss::CrossEntropy,
+        Actf::SoftMax,
+        Actf::ReLU,
+    );
+    ```
+    or you may create a neural network with layer by layer defined activation functions
+    ```
+    let mut neural_network: NeuralNetwork = NeuralNetwork::new(
+        &[784, 32, 32, 10],
+        Init::HeKalming,
+        Loss::CrossEntropy,
+        Actf::SoftMax,
+        Actf::LayerByLayer(vec![Actf::Tanh, Actf::LeReLU]))
+    ```
+    <br>
+        */
     pub fn new(
         structure: &[usize],
         initialization_type: InitializaitonType,
@@ -105,6 +137,7 @@ impl NeuralNetwork {
 }
 
 impl NeuralNetwork {
+    /// Input to a Neural network
     pub fn input(&self, input: &vector<f32>) -> vector<f32> {
         let mut output: vector<f32> = input.clone();
         for layer in self.neural_network.iter() {
@@ -117,6 +150,7 @@ impl NeuralNetwork {
         }
         output
     }
+    /// Calculate the loss and the accuracy of the Neural Network with the MNIST-dataset
     pub fn loss_mnist(&self, test_data: &Vec<(&vector<f32>, &vector<f32>)>) -> (f64, f32) {
         let mut forward: vector<f32>;
         let mut loss: f64 = 0.0;
@@ -133,7 +167,7 @@ impl NeuralNetwork {
             f32::from(got_right) / test_data.len() as f32,
         )
     }
-
+    /// Calculate the loss of a Neural Network with a given dataset
     pub fn loss(&self, test_data: &Vec<(&vector<f32>, &vector<f32>)>) -> f32 {
         let mut forward: vector<f32>;
         let mut loss: f32 = 0.0;
@@ -144,6 +178,8 @@ impl NeuralNetwork {
         loss / test_data.len() as f32
     }
 }
+
+/// Initializing the expected outputs form the labels of the MNIST-dataset
 pub fn initialize_expected_outputs_mnist(labels: &[u8]) -> Vec<vector<f32>> {
     let expected: Vec<vector<f32>> = labels
         .iter()
@@ -156,7 +192,8 @@ pub fn initialize_expected_outputs_mnist(labels: &[u8]) -> Vec<vector<f32>> {
     expected
 }
 
-pub fn print_number_and_test(neural_network: &mut NeuralNetwork) {
+/// Print a number from the MNIST dataset and print the output and the class of the neural network
+pub fn MNIST_print_number_and_test(neural_network: &mut NeuralNetwork) {
     println!("Print nth image");
     let mut line = String::new();
     std::io::stdin().read_line(&mut line).unwrap();
