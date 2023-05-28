@@ -1,5 +1,5 @@
 use crate::loss_and_activation_functions::*;
-use crate::types_and_errors::*;
+use crate::neuralnetwork::*;
 use nalgebra::DMatrix;
 use nalgebra::DVector as vector;
 use rand::{seq::SliceRandom, thread_rng};

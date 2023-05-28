@@ -1,5 +1,5 @@
-use super::types_and_errors::Layer;
-use crate::types_and_errors::NeuralNetwork;
+use super::neuralnetwork::Layer;
+use crate::neuralnetwork::NeuralNetwork;
 use nalgebra::DVector;
 use std::fmt;
 

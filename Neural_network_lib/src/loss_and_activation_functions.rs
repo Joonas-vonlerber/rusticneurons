@@ -1,5 +1,5 @@
-use crate::types_and_errors::{ActivationFunction, LossFunction};
 use nalgebra::{DMatrix as matrix, DVector as vector};
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
 pub fn standard_deviation(data: &VecDeque<f32>) -> f32 {
@@ -37,6 +37,44 @@ impl ActivationOutput {
 }
 
 //ACTIVATION FUNCTIONS
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Enum to define all available activation functions
+pub enum ActivationFunction {
+    /// [ReLU](https://en.wikipedia.org/wiki/Rectifier_(neural_networks)) or Rectified Linear Unit is a commonly used activation function for its benefits like faster learning.
+    ReLU,
+    /// [Parametric ReLU](https://en.wikipedia.org/wiki/Rectifier_(neural_networks)#Parametric_ReLU) which is a generalized version of ReLU
+    /// by adding a parameter of alpha which scales the input of the negative values. DOES NOT CHANGE WITH BACKPROP!! Maybe in the future ;) <br>
+    PReLU(f32),
+    /// [Leaky ReLU](https://en.wikipedia.org/wiki/Rectifier_(neural_networks)#Leaky_ReLU), which solves the dying ReLU problem, but
+    /// **can** come with some learning slowdowns.
+    LeReLU,
+    /// [Sigmoid](https://en.wikipedia.org/wiki/Sigmoid_function) or Logistic regression was one of the most used activation functions
+    /// but has fallen from grace due to ReLU and other better activation function. <br>
+    /// Even though it has many disadvantages compared to ReLU, it still has its uses.
+    Sigmoid,
+    /// [Softmax](https://en.wikipedia.org/wiki/Softmax_function) takes in a distribution of numbers and outputs a propability distribution.
+    /// Softmax is a function usually used in the output-layer and most commonly used in classification type problems.
+    SoftMax,
+    /// Identity function outputs the input.
+    Identity,
+    /// [Linear function](https://en.wikipedia.org/wiki/Linear_function) operates on the input by first scaling it by a scalar, after which it adds some constant term to it.
+    /// The first value, depicts the scalar and the second value defines a constant.
+    Linear(f32, f32),
+    /// [The hyperbolic tangent](https://en.wikipedia.org/wiki/Hyperbolic_functions) activation function.
+    ///  It is similar to the sigmoid activation function but ranging from -1 to 1 instead of 0 to 1.
+    Tanh,
+    /// [Gaussian Error Linear Unit](https://paperswithcode.com/method/gelu) is a new type of activation function, which has been noticed to improve learning time compared to ReLU.
+    /// It is defined using the Normal cumulative distribution function and in my code I use an approximation of the function using tanh.
+    GELU,
+    /// [Exponential Linear Unit](https://paperswithcode.com/method/elu) is a another type of Linear unit,
+    /// which allows for negative values thus pushing mean activations closer to zero. Input is the value of alpha, which is usually 1.0.
+    ELU(f32),
+    /// [SoftPlus](https://paperswithcode.com/method/softplus) is a smooth approximation of ReLU<br>
+    SoftPlus,
+    /// A way of defining the activation functions for hidden layers layer by layer. The lenght of the vec should be ```neural_network.shape().len()-2```.
+    LayerByLayer(Vec<ActivationFunction>),
+}
 
 fn linear(
     input: &vector<f32>,
@@ -129,6 +167,17 @@ fn elu(input: &vector<f32>, alpha: &f32, derivative: bool) -> ActivationOutput {
 }
 
 //LOSS FUNCTONS
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Enum to define all of the loss functions
+pub enum LossFunction {
+    /// MSE or Mean Squared Error is defined to be [this](https://en.wikipedia.org/wiki/Mean_squared_error)
+    MSE,
+    /// MAE or Mean Absolute Error is defined to be [this](https://en.wikipedia.org/wiki/Mean_absolute_error)
+    MAE,
+    /// Cross Entropy is defined to be [this](https://en.wikipedia.org/wiki/Cross_entropy)
+    CrossEntropy,
+}
 
 fn mse(input: &vector<f32>, expected: &vector<f32>, derivative: bool) -> vector<f32> {
     let diff: vector<f32> = input - expected;

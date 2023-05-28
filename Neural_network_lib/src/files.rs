@@ -1,15 +1,72 @@
-use super::types_and_errors::*;
+use crate::loss_and_activation_functions::{ActivationFunction, LossFunction};
+use crate::neuralnetwork::*;
 use bincode::{self, deserialize, serialize};
-use nalgebra::DVector;
+use half::f16;
+use nalgebra::{DMatrix, DVector};
+use serde::{Deserialize, Serialize};
 use std::{
+    convert::From,
     fs::File,
     io::{self, BufReader, Read, Result, Write},
     path::Path,
 };
 
+#[derive(Debug, Serialize, Deserialize)]
+struct SaveLayer {
+    weights: DMatrix<f16>,
+    biases: DVector<f16>,
+    activation_function: ActivationFunction,
+}
+#[derive(Debug, Serialize, Deserialize)]
+struct SaveNeuralNetwork {
+    neural_network: Vec<SaveLayer>,
+    loss_function: LossFunction,
+}
+
+impl From<&Layer> for SaveLayer {
+    fn from(value: &Layer) -> Self {
+        SaveLayer {
+            weights: value.weights.map(f16::from_f32),
+            biases: value.biases.map(f16::from_f32),
+            activation_function: value.activation_function.clone(),
+        }
+    }
+}
+
+impl From<&NeuralNetwork> for SaveNeuralNetwork {
+    fn from(value: &NeuralNetwork) -> Self {
+        SaveNeuralNetwork {
+            neural_network: value.neural_network.iter().map(SaveLayer::from).collect(),
+            loss_function: value.loss_function.clone(),
+        }
+    }
+}
+
+impl From<SaveNeuralNetwork> for NeuralNetwork {
+    fn from(value: SaveNeuralNetwork) -> Self {
+        NeuralNetwork {
+            neural_network: value.neural_network.into_iter().map(Layer::from).collect(),
+            loss_function: value.loss_function,
+        }
+    }
+}
+
+impl From<SaveLayer> for Layer {
+    fn from(value: SaveLayer) -> Self {
+        let dim_size: usize = value.weights.shape().1;
+        Layer {
+            values: DVector::zeros(dim_size),
+            outputs: DVector::zeros(dim_size),
+            weights: value.weights.map(f16::to_f32),
+            biases: value.biases.map(f16::to_f32),
+            activation_function: value.activation_function,
+        }
+    }
+}
+
 pub fn save_network<P: AsRef<Path>>(path: P, network: &NeuralNetwork) -> Result<()> {
     let mut f = File::create(path)?;
-    let buf = match serialize(network) {
+    let buf = match serialize(&SaveNeuralNetwork::from(network)) {
         Ok(buf) => buf,
         Err(_) => {
             return Err(std::io::Error::new(
@@ -25,8 +82,8 @@ pub fn load_network<P: AsRef<Path>>(path: P) -> Result<NeuralNetwork> {
     let mut file = File::open(path)?;
     let mut buf = vec![];
     if file.read_to_end(&mut buf).is_ok() {
-        match deserialize(&buf[..]) {
-            Ok(neural_network) => Ok(neural_network),
+        match deserialize::<SaveNeuralNetwork>(&buf[..]) {
+            Ok(neural_network) => Ok(NeuralNetwork::from(neural_network)),
             Err(_) => Err(std::io::Error::new(
                 io::ErrorKind::Other,
                 "Deserializing failed!",
@@ -98,4 +155,17 @@ pub fn load_expected_outputs(filename: &str) -> io::Result<Vec<u8>> {
     let mut labels = vec![0u8; count as usize];
     file.read_exact(&mut labels)?;
     Ok(labels)
+}
+
+/// Initializing the expected outputs form the labels of the MNIST-dataset
+pub fn initialize_expected_outputs_mnist(labels: &[u8]) -> Vec<DVector<f32>> {
+    let expected: Vec<DVector<f32>> = labels
+        .iter()
+        .map(|f| {
+            let mut expect = DVector::zeros(10);
+            expect[*f as usize] = 1.0;
+            expect
+        })
+        .collect();
+    expected
 }

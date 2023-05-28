@@ -1,10 +1,17 @@
+use crate::files::load_inputs;
+use crate::loss_and_activation_functions::{
+    activation_function, loss_function, ActivationFunction, LossFunction,
+};
+use crate::ui::*;
 use nalgebra::{DMatrix as matrix, DVector as vector};
-use serde::{Deserialize, Serialize};
+use rand::thread_rng;
+use statrs::distribution::Normal;
+use std::iter;
 use std::{
     fmt::Display,
     ops::{Add, Mul},
 };
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 /// One **layer** in the neural network, with the needed informaiton to calculate the next layer
 pub struct Layer {
     pub values: vector<f32>,
@@ -13,7 +20,7 @@ pub struct Layer {
     pub biases: vector<f32>,
     pub activation_function: ActivationFunction,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 /// **Feedforward Neural Newtork** with user defined Lossfunction and Activationfunctions.
 pub struct NeuralNetwork {
     pub neural_network: Vec<Layer>,
@@ -157,54 +164,194 @@ impl<'a, 'b> Mul<&'b f32> for &'a NeuralNetwork {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-/// Enum to define all of the loss functions
-pub enum LossFunction {
-    /// MSE or Mean Squared Error is defined to be [this](https://en.wikipedia.org/wiki/Mean_squared_error)
-    MSE,
-    /// MAE or Mean Absolute Error is defined to be [this](https://en.wikipedia.org/wiki/Mean_absolute_error)
-    MAE,
-    /// Cross Entropy is defined to be [this](https://en.wikipedia.org/wiki/Cross_entropy)
-    CrossEntropy,
+#[derive(Debug, Clone, Copy, PartialEq)]
+/// Types of Normal distributions you can use when initializing the network
+pub enum InitializaitonType {
+    /// Choose your own Normal distribution, where you give the standard deviation. It will stay constant for the whole initialization
+    Normal(f32),
+    /// LeCun initialization is derived from keeping the same standard distribition to all of the weights in each layer.
+    /// It results that the variance should be 1/n, where n in the number of input neurons. This initialization technique is useful for many types of neural networks.
+    LeCun,
+    /// Xavier Glorot initialization technique is mainly for tanh- or sigmoid-function. It is derived almost the same way LeCun is, but the assumption that
+    /// a good approximation for tanh is just the identity function. It shows that the variance should be 1/(n_in + n_out), where n_in is the number of input
+    /// neurons and n_out is the number of output neurons.
+    XavierGlorot,
+    /// He Kaiming initialization technique is usually used with ReLU or other types of linear units like Leaky ReLU, Parametric ReLU etc. In the research paper
+    /// it is showed that the initialization variance 2/n, where n is the amount of input neurons, is better with funcitons like ReLU than 1/n.
+    HeKaiming,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-/// Enum to define all available activation functions
-pub enum ActivationFunction {
-    /// [ReLU](https://en.wikipedia.org/wiki/Rectifier_(neural_networks)) or Rectified Linear Unit is a commonly used activation function for its benefits like faster learning.
-    ReLU,
-    /// [Parametric ReLU](https://en.wikipedia.org/wiki/Rectifier_(neural_networks)#Parametric_ReLU) which is a generalized version of ReLU
-    /// by adding a parameter of alpha which scales the input of the negative values. DOES NOT CHANGE WITH BACKPROP!! Maybe in the future ;) <br>
-    PReLU(f32),
-    /// [Leaky ReLU](https://en.wikipedia.org/wiki/Rectifier_(neural_networks)#Leaky_ReLU), which solves the dying ReLU problem, but
-    /// **can** come with some learning slowdowns.
-    LeReLU,
-    /// [Sigmoid](https://en.wikipedia.org/wiki/Sigmoid_function) or Logistic regression was one of the most used activation functions
-    /// but has fallen from grace due to ReLU and other better activation function. <br>
-    /// Even though it has many disadvantages compared to ReLU, it still has its uses.
-    Sigmoid,
-    /// [Softmax](https://en.wikipedia.org/wiki/Softmax_function) takes in a distribution of numbers and outputs a propability distribution.
-    /// Softmax is a function usually used in the output-layer and most commonly used in classification type problems.
-    SoftMax,
-    /// Identity function outputs the input.
-    Identity,
-    /// [Linear function](https://en.wikipedia.org/wiki/Linear_function) operates on the input by first scaling it by a scalar, after which it adds some constant term to it.
-    /// The first value, depicts the scalar and the second value defines a constant.
-    Linear(f32, f32),
-    /// [The hyperbolic tangent](https://en.wikipedia.org/wiki/Hyperbolic_functions) activation function.
-    ///  It is similar to the sigmoid activation function but ranging from -1 to 1 instead of 0 to 1.
-    Tanh,
-    /// [Gaussian Error Linear Unit](https://paperswithcode.com/method/gelu) is a new type of activation function, which has been noticed to improve learning time compared to ReLU.
-    /// It is defined using the Normal cumulative distribution function and in my code I use an approximation of the function using tanh.
-    GELU,
-    /// [Exponential Linear Unit](https://paperswithcode.com/method/elu) is a another type of Linear unit,
-    /// which allows for negative values thus pushing mean activations closer to zero. Input is the value of alpha, which is usually 1.0.
-    ELU(f32),
-    /// [SoftPlus](https://paperswithcode.com/method/softplus) is a smooth approximation of ReLU<br>
-    SoftPlus,
-    /// A way of defining the activation functions for hidden layers layer by layer. The lenght of the vec should be ```neural_network.shape().len()-2```.
-    LayerByLayer(Vec<ActivationFunction>),
+
+impl Layer {
+    fn new(
+        init_type: InitializaitonType,
+        structure: &[usize],
+        activation_function: &ActivationFunction,
+    ) -> Self {
+        let distribution: Normal = Layer::init_distribution(init_type, structure);
+        let rng = &mut thread_rng();
+        Layer {
+            outputs: vector::zeros(structure[0]),
+            values: vector::zeros(structure[0]),
+            weights: matrix::from_distribution(structure[1], structure[0], &distribution, rng)
+                .map(|i| i as f32),
+            biases: vector::from_distribution(structure[1], &distribution, rng).map(|i| i as f32),
+            activation_function: activation_function.clone(),
+        }
+    }
+    fn init_distribution(init_type: InitializaitonType, dims: &[usize]) -> Normal {
+        match init_type {
+            InitializaitonType::Normal(std_dev) => Normal::new(0.0, std_dev as f64).unwrap(),
+            InitializaitonType::LeCun => Normal::new(0.0, 1.0 / (dims[0] as f64).sqrt()).unwrap(),
+            InitializaitonType::XavierGlorot => {
+                Normal::new(0.0, 1.0 / ((dims[0] + dims[1]) as f64).sqrt()).unwrap()
+            }
+            InitializaitonType::HeKaiming => {
+                Normal::new(0.0, (2.0 / (dims[0] as f64)).sqrt()).unwrap()
+            }
+        }
+    }
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+
+impl NeuralNetwork {
+    fn activation_function_iterator<'a>(
+        structure_len: usize,
+        hidden_activation: &'a ActivationFunction,
+        final_activation: &'a ActivationFunction,
+    ) -> impl IntoIterator<Item = &'a ActivationFunction> {
+        if let ActivationFunction::LayerByLayer(layerbylayer) = hidden_activation {
+            layerbylayer
+                .iter()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .chain(iter::once(final_activation))
+        } else {
+            iter::repeat(hidden_activation)
+                .take(structure_len - 2usize)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .chain(iter::once(final_activation))
+        }
+    }
+    /**
+    you can create Neural network by calling the method **new**, which takes in the structure of the neural network as **&[[usize]]**, **initialization type**,
+    **loss function** and **activation functions**.<br>.
+
+    You can make a Neural network for classifying the MNIST dataset with the parametres
+    ```
+    extern crate neural_network_lib as nnl;
+    use nnl::types_and_errors::{
+        InitializationType as Init,
+        LossFunction as Loss,
+        ActivationFunction as Actf,
+    };
+
+    let mut neural_network: NeuralNetwork = NeuralNetwork::new(
+        &[784, 32, 32, 10],
+        Init::HeKalming,
+        Loss::CrossEntropy,
+        Actf::SoftMax,
+        Actf::ReLU,
+    );
+    ```
+    or you may create a neural network with layer by layer defined activation functions
+    ```
+    let mut neural_network: NeuralNetwork = NeuralNetwork::new(
+        &[784, 32, 32, 10],
+        Init::HeKalming,
+        Loss::CrossEntropy,
+        Actf::SoftMax,
+        Actf::LayerByLayer(vec![Actf::Tanh, Actf::LeReLU]))
+    ```
+    <br>
+        */
+    pub fn new(
+        structure: &[usize],
+        initialization_type: InitializaitonType,
+        loss_function: LossFunction,
+        final_activation: ActivationFunction,
+        hidden_activation: ActivationFunction,
+        //dropout: Dropout,
+    ) -> Self {
+        let activation_iterator = NeuralNetwork::activation_function_iterator(
+            structure.len(),
+            &hidden_activation,
+            &final_activation,
+        );
+        NeuralNetwork {
+            neural_network: structure
+                .windows(2)
+                .zip(activation_iterator)
+                .map(|(dims, activation_function)| {
+                    Layer::new(initialization_type, dims, activation_function)
+                })
+                .collect(),
+            loss_function,
+            // dropout,
+        }
+    }
+}
+
+impl NeuralNetwork {
+    /// Input to a Neural network
+    pub fn input(&self, input: &vector<f32>) -> vector<f32> {
+        let mut output: vector<f32> = input.clone();
+        for layer in self.neural_network.iter() {
+            output = activation_function(
+                &layer.activation_function,
+                &(&layer.weights * &output + &layer.biases),
+                false,
+            )
+            .extract_vector();
+        }
+        output
+    }
+    /// Calculate the loss and the accuracy of the Neural Network with the MNIST-dataset
+    pub fn loss_mnist(&self, test_data: &Vec<(&vector<f32>, &vector<f32>)>) -> (f64, f32) {
+        let mut forward: vector<f32>;
+        let mut loss: f64 = 0.0;
+        let mut got_right: u16 = 0;
+        for (input, expected) in test_data.iter() {
+            forward = self.input(input);
+            loss += loss_function(&self.loss_function, &forward, expected, false).sum() as f64;
+            if forward.imax() == expected.imax() {
+                got_right += 1;
+            }
+        }
+        (
+            loss / test_data.len() as f64,
+            f32::from(got_right) / test_data.len() as f32,
+        )
+    }
+    /// Calculate the loss of a Neural Network with a given dataset
+    pub fn loss(&self, test_data: &Vec<(&vector<f32>, &vector<f32>)>) -> f32 {
+        let mut forward: vector<f32>;
+        let mut loss: f32 = 0.0;
+        for (input, expected) in test_data.iter() {
+            forward = self.input(input);
+            loss += loss_function(&self.loss_function, &forward, expected, false).sum();
+        }
+        loss / test_data.len() as f32
+    }
+}
+
+/// Print a number from the MNIST dataset and print the output and the class of the neural network
+pub fn mnist_print_number_and_test(neural_network: &mut NeuralNetwork) {
+    println!("Print nth image");
+    let mut line = String::new();
+    std::io::stdin().read_line(&mut line).unwrap();
+    let data = load_inputs(r"resources/train-images-idx3-ubyte").unwrap();
+    let n = line.trim().parse::<usize>().unwrap();
+    let image = NumberImage {
+        rows: 28,
+        columns: 28,
+        data: data[n].clone(),
+    };
+    println!("{}", image);
+    println!("{}", neural_network.input(&data[n].clone()));
+    println!("{}", neural_network.input(&data[n].clone()).imax());
+}
+
+#[derive(Debug, Clone, PartialEq)]
 /// Defines the way to run trough the data
 pub enum GradientDecentType {
     /// [Stochastic gradient decent](https://www.ruder.io/optimizing-gradient-descent/#stochasticgradientdescent) runs trough the one data point, calculates the gradient and uses that gradient to update the weights.<br>
@@ -217,7 +364,7 @@ pub enum GradientDecentType {
     /// calculating the gradient for each of them. It adds all the gradients together, after which it uses the sum to update the weights.
     Batch,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Optimizer {
     /// Vanilla gradinet decent, where we use just the gradient of the loss function to update the weights.
     Vanilla,

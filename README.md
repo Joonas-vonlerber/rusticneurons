@@ -10,11 +10,11 @@ Really was just a way for me to try out Rust and learn about neural networks on 
 
 ### Step 1:
 Clone the repository
-> `git clone https://github.com/Joonas-vonlerber/rusticneurons.git`
+`git clone https://github.com/Joonas-vonlerber/rusticneurons.git`
 
 ### Step 2:
 In your projects Cargo.toml under dependencies add:
->`neural_network_lib = {path = 'path/to/Neural_network_lib'}`
+`neural_network_lib = {path = 'path/to/Neural_network_lib'}`
 
 ## Example program
 
