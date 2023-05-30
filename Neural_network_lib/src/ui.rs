@@ -1,4 +1,4 @@
-use super::neuralnetwork::Layer;
+use crate::neuralnetwork::Layer;
 use crate::neuralnetwork::NeuralNetwork;
 use nalgebra::DVector;
 use std::fmt;

@@ -353,7 +353,7 @@ pub fn mnist_print_number_and_test(neural_network: &mut NeuralNetwork) {
 
 #[derive(Debug, Clone, PartialEq)]
 /// Defines the way to run trough the data
-pub enum GradientDecentType {
+pub enum BatchType {
     /// [Stochastic gradient decent](https://www.ruder.io/optimizing-gradient-descent/#stochasticgradientdescent) runs trough the one data point, calculates the gradient and uses that gradient to update the weights.<br>
     Stochastic,
     /// [Mini-Batch gradient decent](https://www.ruder.io/optimizing-gradient-descent/#minibatchgradientdescent) is the beautiful lovechild of

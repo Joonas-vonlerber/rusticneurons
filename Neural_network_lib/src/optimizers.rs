@@ -3,31 +3,24 @@ use crate::neuralnetwork::*;
 use nalgebra::DMatrix;
 use nalgebra::DVector as vector;
 use rand::{seq::SliceRandom, thread_rng};
-// use statrs::distribution::Bernoulli;
 use std::{collections::VecDeque, f32};
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct ValueOutputPair {
+    pub value: vector<f32>,
+    pub output: vector<f32>,
+}
+
 impl NeuralNetwork {
-    fn forward_phase(&mut self, input: &vector<f32>) -> Layer {
+    pub fn forward_phase(&mut self, input: &vector<f32>) -> Layer {
         self.neural_network[0].outputs = input.clone();
         let mut iterator = self.neural_network.iter_mut();
         let mut before = iterator.next().unwrap();
-        // let dropout_distirbution =
-        // Bernoulli::new(1.0f64 - self.dropout.get_probability() as f64).unwrap();
         for current in iterator {
             current.values = &before.weights * &before.outputs + &before.biases;
             current.outputs =
                 activation_function(&before.activation_function, &current.values, false)
                     .extract_vector();
-            // if let Dropout::Dropout(_) = self.dropout {
-            //     current.outputs.component_mul_assign(
-            //         &vector::from_distribution(
-            //             current.outputs.len(),
-            //             &dropout_distirbution,
-            //             &mut thread_rng(),
-            //         )
-            //         .map(|elem| elem as f32),
-            //     );
-            // }
             before = current;
         }
         let last_layer = self.neural_network.last().unwrap();
@@ -41,8 +34,88 @@ impl NeuralNetwork {
             activation_function: ActivationFunction::Sigmoid,
         }
     }
+    pub fn forward_phase_wo_side(&self, input: &vector<f32>) -> Vec<ValueOutputPair> {
+        let mut value: vector<f32> = vector::zeros(input.len());
+        let mut output: vector<f32> = input.clone();
+        let input: Vec<ValueOutputPair> = vec![ValueOutputPair {
+            value: value.clone(),
+            output: output.clone(),
+        }];
+        let values_and_outputs: Vec<ValueOutputPair> = self
+            .neural_network
+            .iter()
+            .map(|layer| {
+                value = &layer.weights * &output + &layer.biases;
+                output =
+                    activation_function(&layer.activation_function, &value, false).extract_vector();
+                ValueOutputPair {
+                    value: value.clone(),
+                    output: output.clone(),
+                }
+            })
+            .collect::<Vec<ValueOutputPair>>();
+        [input, values_and_outputs].concat()
+    }
 
-    fn backward_phase(&self, forward: &Layer, expected: &vector<f32>) -> NeuralNetwork {
+    pub fn backward_phase_wo_side(
+        &self,
+        forward: &[ValueOutputPair],
+        expected: &vector<f32>,
+    ) -> NeuralNetwork {
+        let mut iterator_values_and_outputs = forward.iter().rev();
+        let neural_out = iterator_values_and_outputs.next().unwrap();
+        let mut iterator = self
+            .neural_network
+            .iter()
+            .rev()
+            .zip(iterator_values_and_outputs);
+        let (last_layer_neural, last_layer_values_outputs) = iterator.next().unwrap();
+        let mut errorterm: vector<f32> = activation_function(
+            &last_layer_neural.activation_function,
+            &neural_out.value,
+            true,
+        )
+        .calculate_errorterm(&loss_function(
+            &self.loss_function,
+            &neural_out.output,
+            expected,
+            true,
+        ));
+        let last_layer = Layer {
+            values: vector::zeros(last_layer_neural.values.len()),
+            outputs: vector::zeros(last_layer_neural.outputs.len()),
+            weights: &errorterm * last_layer_values_outputs.output.transpose(),
+            biases: errorterm.clone(),
+            activation_function: last_layer_neural.activation_function.clone(),
+        };
+        errorterm = last_layer_neural.weights.transpose() * errorterm;
+        let mut last_values: &vector<f32> = &last_layer_values_outputs.value;
+        let mut gradient: Vec<Layer> = iterator
+            .map(|(neural_layer, layer_values_outputs)| {
+                errorterm =
+                    activation_function(&neural_layer.activation_function, last_values, true)
+                        .calculate_errorterm(&errorterm);
+                let gradient_layer = Layer {
+                    values: vector::zeros(neural_layer.values.len()),
+                    outputs: vector::zeros(neural_layer.outputs.len()),
+                    weights: &errorterm * layer_values_outputs.output.transpose(),
+                    biases: errorterm.clone(),
+                    activation_function: neural_layer.activation_function.clone(),
+                };
+                errorterm = neural_layer.weights.transpose() * errorterm.clone();
+                last_values = &layer_values_outputs.value;
+                gradient_layer
+            })
+            .collect();
+        gradient.reverse();
+        gradient.push(last_layer);
+        NeuralNetwork {
+            neural_network: gradient,
+            loss_function: self.loss_function.clone(),
+        }
+    }
+
+    pub fn backward_phase(&self, forward: &Layer, expected: &vector<f32>) -> NeuralNetwork {
         let mut gradient = self.clone_clear();
         let mut iterator = self
             .neural_network
@@ -349,19 +422,19 @@ impl NeuralNetwork {
         }
         self
     }
-
+    /// Train networks with different types of gradient decent optimizations
     pub fn train(
         self,
         data: &mut Vec<(&vector<f32>, &vector<f32>)>,
         learning_rate: f32,
         epochs: u32,
-        gradient_decent: GradientDecentType,
+        batchtype: BatchType,
         optimizer: Optimizer,
     ) -> NeuralNetwork {
-        let chunk_size = match gradient_decent {
-            GradientDecentType::Stochastic => 1,
-            GradientDecentType::Batch => data.len(),
-            GradientDecentType::MiniBatch(batch_size) => batch_size,
+        let chunk_size = match batchtype {
+            BatchType::Stochastic => 1,
+            BatchType::Batch => data.len(),
+            BatchType::MiniBatch(batch_size) => batch_size,
         };
         match optimizer {
             Optimizer::Vanilla => self.minibatch(chunk_size, data, learning_rate, epochs),
