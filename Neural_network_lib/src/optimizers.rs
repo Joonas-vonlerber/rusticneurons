@@ -1,40 +1,17 @@
 use crate::loss_and_activation_functions::*;
 use crate::neuralnetwork::*;
-use nalgebra::DMatrix;
 use nalgebra::DVector as vector;
 use rand::{seq::SliceRandom, thread_rng};
 use std::{collections::VecDeque, f32};
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct ValueOutputPair {
-    pub value: vector<f32>,
-    pub output: vector<f32>,
+struct ValueOutputPair {
+    value: vector<f32>,
+    output: vector<f32>,
 }
 
 impl NeuralNetwork {
-    pub fn forward_phase(&mut self, input: &vector<f32>) -> Layer {
-        self.neural_network[0].outputs = input.clone();
-        let mut iterator = self.neural_network.iter_mut();
-        let mut before = iterator.next().unwrap();
-        for current in iterator {
-            current.values = &before.weights * &before.outputs + &before.biases;
-            current.outputs =
-                activation_function(&before.activation_function, &current.values, false)
-                    .extract_vector();
-            before = current;
-        }
-        let last_layer = self.neural_network.last().unwrap();
-        let output = &last_layer.weights * &last_layer.outputs + &last_layer.biases;
-        Layer {
-            outputs: activation_function(&last_layer.activation_function, &output, false)
-                .extract_vector(),
-            values: output,
-            weights: DMatrix::zeros(1, 1),
-            biases: vector::zeros(1),
-            activation_function: ActivationFunction::Sigmoid,
-        }
-    }
-    pub fn forward_phase_wo_side(&self, input: &vector<f32>) -> Vec<ValueOutputPair> {
+    fn forward_phase(&self, input: &vector<f32>) -> Vec<ValueOutputPair> {
         let mut value: vector<f32> = vector::zeros(input.len());
         let mut output: vector<f32> = input.clone();
         let input: Vec<ValueOutputPair> = vec![ValueOutputPair {
@@ -57,11 +34,7 @@ impl NeuralNetwork {
         [input, values_and_outputs].concat()
     }
 
-    pub fn backward_phase_wo_side(
-        &self,
-        forward: &[ValueOutputPair],
-        expected: &vector<f32>,
-    ) -> NeuralNetwork {
+    fn backward_phase(&self, forward: &[ValueOutputPair], expected: &vector<f32>) -> NeuralNetwork {
         let mut iterator_values_and_outputs = forward.iter().rev();
         let neural_out = iterator_values_and_outputs.next().unwrap();
         let mut iterator = self
@@ -82,8 +55,6 @@ impl NeuralNetwork {
             true,
         ));
         let last_layer = Layer {
-            values: vector::zeros(last_layer_neural.values.len()),
-            outputs: vector::zeros(last_layer_neural.outputs.len()),
             weights: &errorterm * last_layer_values_outputs.output.transpose(),
             biases: errorterm.clone(),
             activation_function: last_layer_neural.activation_function.clone(),
@@ -96,8 +67,6 @@ impl NeuralNetwork {
                     activation_function(&neural_layer.activation_function, last_values, true)
                         .calculate_errorterm(&errorterm);
                 let gradient_layer = Layer {
-                    values: vector::zeros(neural_layer.values.len()),
-                    outputs: vector::zeros(neural_layer.outputs.len()),
                     weights: &errorterm * layer_values_outputs.output.transpose(),
                     biases: errorterm.clone(),
                     activation_function: neural_layer.activation_function.clone(),
@@ -115,48 +84,13 @@ impl NeuralNetwork {
         }
     }
 
-    pub fn backward_phase(&self, forward: &Layer, expected: &vector<f32>) -> NeuralNetwork {
-        let mut gradient = self.clone_clear();
-        let mut iterator = self
-            .neural_network
-            .iter()
-            .zip(gradient.neural_network.iter_mut())
-            .rev();
-        let (last_layer_neural, last_layer_gradient) = iterator.next().unwrap();
-        let mut errorterm: vector<f32> = activation_function(
-            &last_layer_neural.activation_function,
-            &forward.values,
-            true,
-        )
-        .calculate_errorterm(&loss_function(
-            &self.loss_function,
-            &forward.outputs,
-            expected,
-            true,
-        ));
-
-        last_layer_gradient.biases.clone_from(&errorterm);
-        last_layer_gradient.weights = &errorterm * last_layer_neural.outputs.transpose();
-        errorterm = last_layer_neural.weights.transpose() * errorterm;
-        let mut last_values: &vector<f32> = &last_layer_neural.values;
-        for (neural_layer, gradient_layer) in iterator {
-            errorterm = activation_function(&neural_layer.activation_function, last_values, true)
-                .calculate_errorterm(&errorterm);
-            gradient_layer.biases.clone_from(&errorterm);
-            gradient_layer.weights = &errorterm * neural_layer.outputs.transpose();
-            errorterm = neural_layer.weights.transpose() * errorterm;
-            last_values = &neural_layer.values;
-        }
-        gradient
-    }
-
     fn set_gradient(
         &mut self,
         neural_network: &mut NeuralNetwork,
         batch: &[(&vector<f32>, &vector<f32>)],
     ) {
         *self = self.clear();
-        let mut forward: Layer;
+        let mut forward: Vec<ValueOutputPair>;
         for (input, expected) in batch.iter() {
             forward = neural_network.forward_phase(input);
             *self = &*self + &neural_network.backward_phase(&forward, expected);
@@ -172,7 +106,7 @@ impl NeuralNetwork {
         batch: &[(&vector<f32>, &vector<f32>)],
     ) {
         *self = self.clear();
-        let mut forward: Layer;
+        let mut forward: Vec<ValueOutputPair>;
         for (input, expected) in batch.iter() {
             forward = neural_network.forward_phase(input);
             *self = &*self

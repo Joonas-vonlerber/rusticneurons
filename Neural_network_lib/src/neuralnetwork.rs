@@ -14,8 +14,6 @@ use std::{
 #[derive(Debug, Clone, PartialEq)]
 /// One **layer** in the neural network, with the needed informaiton to calculate the next layer
 pub struct Layer {
-    pub values: vector<f32>,
-    pub outputs: vector<f32>,
     pub weights: matrix<f32>,
     pub biases: vector<f32>,
     pub activation_function: ActivationFunction,
@@ -32,8 +30,6 @@ impl<'a, 'b> Add<&'b Layer> for &'a Layer {
     type Output = Layer;
     fn add(self, rhs: &'b Layer) -> Layer {
         Layer {
-            values: &self.values + &rhs.values,
-            outputs: &self.outputs + &rhs.outputs,
             weights: &self.weights + &rhs.weights,
             biases: &self.biases + &rhs.biases,
             activation_function: self.activation_function.clone(),
@@ -45,8 +41,6 @@ impl<'a, 'b> Mul<&'b f32> for &'a Layer {
     type Output = Layer;
     fn mul(self, rhs: &'b f32) -> Self::Output {
         Layer {
-            values: &self.values * *rhs,
-            outputs: &self.outputs * *rhs,
             weights: &self.weights * *rhs,
             biases: &self.biases * *rhs,
             activation_function: self.activation_function.clone(),
@@ -58,8 +52,6 @@ impl Mul<&Layer> for &Layer {
     type Output = Layer;
     fn mul(self, rhs: &Layer) -> Self::Output {
         Layer {
-            values: self.values.component_mul(&rhs.values),
-            outputs: self.outputs.component_mul(&rhs.outputs),
             weights: self.weights.component_mul(&rhs.weights),
             biases: self.biases.component_mul(&rhs.biases),
             activation_function: self.activation_function.clone(),
@@ -92,8 +84,6 @@ impl NeuralNetwork {
                 .neural_network
                 .iter()
                 .map(|layer| Layer {
-                    values: layer.values.map(f),
-                    outputs: layer.outputs.map(f),
                     weights: layer.weights.map(f),
                     biases: layer.biases.map(f),
                     activation_function: layer.activation_function.clone(),
@@ -190,8 +180,6 @@ impl Layer {
         let distribution: Normal = Layer::init_distribution(init_type, structure);
         let rng = &mut thread_rng();
         Layer {
-            outputs: vector::zeros(structure[0]),
-            values: vector::zeros(structure[0]),
             weights: matrix::from_distribution(structure[1], structure[0], &distribution, rng)
                 .map(|i| i as f32),
             biases: vector::from_distribution(structure[1], &distribution, rng).map(|i| i as f32),

@@ -30,8 +30,8 @@ impl fmt::Display for Layer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "values: {} outputs: {} weights: {} biases: {} activation function: {:#?}",
-            self.values, self.outputs, self.weights, self.biases, self.activation_function
+            "weights: {} biases: {} activation function: {:#?}",
+            self.weights, self.biases, self.activation_function
         )
     }
 }

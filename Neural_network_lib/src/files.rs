@@ -53,10 +53,7 @@ impl From<SaveNeuralNetwork> for NeuralNetwork {
 
 impl From<SaveLayer> for Layer {
     fn from(value: SaveLayer) -> Self {
-        let dim_size: usize = value.weights.shape().1;
         Layer {
-            values: DVector::zeros(dim_size),
-            outputs: DVector::zeros(dim_size),
             weights: value.weights.map(f16::to_f32),
             biases: value.biases.map(f16::to_f32),
             activation_function: value.activation_function,
