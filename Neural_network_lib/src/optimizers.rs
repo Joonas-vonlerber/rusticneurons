@@ -2,8 +2,9 @@ use crate::loss_and_activation_functions::*;
 use crate::neuralnetwork::*;
 use nalgebra::DVector as vector;
 use rand::{seq::SliceRandom, thread_rng};
+use rayon::prelude::*;
+use std::vec;
 use std::{collections::VecDeque, f32};
-
 #[derive(Debug, PartialEq, Clone)]
 struct ValueOutputPair {
     value: vector<f32>,
@@ -90,12 +91,13 @@ impl NeuralNetwork {
         batch: &[(&vector<f32>, &vector<f32>)],
     ) {
         *self = self.clear();
-        let mut forward: Vec<ValueOutputPair>;
-        for (input, expected) in batch.iter() {
-            forward = neural_network.forward_phase(input);
-            *self = &*self + &neural_network.backward_phase(&forward, expected);
-        }
-        *self = &*self * &self.normalize();
+        let gradient: NeuralNetwork = batch
+            .par_iter()
+            .map(|(input, expected)| {
+                neural_network.backward_phase(&neural_network.forward_phase(input), expected)
+            })
+            .reduce(|| neural_network.clone_clear(), |a, b| &a + &b);
+        *self = &(&*self + &gradient) * &gradient.normalize();
     }
 
     fn set_gradient_nesterov(
@@ -106,14 +108,14 @@ impl NeuralNetwork {
         batch: &[(&vector<f32>, &vector<f32>)],
     ) {
         *self = self.clear();
-        let mut forward: Vec<ValueOutputPair>;
-        for (input, expected) in batch.iter() {
-            forward = neural_network.forward_phase(input);
-            *self = &*self
-                + &(&*neural_network + &(momentum_network * &-decay))
-                    .backward_phase(&forward, expected);
-        }
-        *self = &*self * &self.normalize();
+        let gradient: NeuralNetwork = batch
+            .par_iter()
+            .map(|(input, expected)| {
+                (&*neural_network + &(momentum_network * &-decay))
+                    .backward_phase(&neural_network.forward_phase(input), expected)
+            })
+            .reduce(|| neural_network.clone_clear(), |a, b| &a + &b);
+        *self = &(&*self + &gradient) * &gradient.normalize();
     }
     fn minibatch(
         mut self,
