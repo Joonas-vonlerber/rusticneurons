@@ -13,3 +13,4 @@ serde = "1.0.152"
 statrs = "0.16.0"
 half = {version = '2.2.1', features = ["serde"]}
 rayon = "1.7.0"
+num_cpus = '1.15.0'

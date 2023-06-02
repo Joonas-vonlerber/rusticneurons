@@ -1,8 +1,11 @@
 use crate::loss_and_activation_functions::*;
 use crate::neuralnetwork::*;
 use nalgebra::DVector as vector;
+use num_cpus::get;
 use rand::{seq::SliceRandom, thread_rng};
 use rayon::prelude::*;
+use rayon::ThreadPool;
+use rayon::ThreadPoolBuilder;
 use std::vec;
 use std::{collections::VecDeque, f32};
 #[derive(Debug, PartialEq, Clone)]
@@ -85,36 +88,62 @@ impl NeuralNetwork {
         }
     }
 
-    fn set_gradient(
+    pub fn set_gradient(
         &mut self,
-        neural_network: &mut NeuralNetwork,
+        neural_network: &Self,
+        batch: &[(&vector<f32>, &vector<f32>)],
+        thread_pool: &ThreadPool,
+    ) {
+        *self = self.clear();
+        let gradient: NeuralNetwork = thread_pool.install(|| {
+            batch
+                .par_iter()
+                .map(|(input, expected)| {
+                    neural_network.backward_phase(&neural_network.forward_phase(input), expected)
+                })
+                .reduce(|| neural_network.clone_clear(), |a, b| &a + &b)
+        });
+        // let gradient: NeuralNetwork = batch
+        //     .par_iter()
+        //     .map(|(input, expected)| {
+        //         neural_network.backward_phase(&neural_network.forward_phase(input), expected)
+        //     })
+        //     .reduce(|| neural_network.clone_clear(), |a, b| &a + &b);
+        *self = &(&*self + &gradient) * &gradient.normalize();
+    }
+    pub fn set_gradient_wo_ptr(
+        &mut self,
+        neural_network: &Self,
         batch: &[(&vector<f32>, &vector<f32>)],
     ) {
         *self = self.clear();
         let gradient: NeuralNetwork = batch
-            .par_iter()
+            .iter()
             .map(|(input, expected)| {
                 neural_network.backward_phase(&neural_network.forward_phase(input), expected)
             })
-            .reduce(|| neural_network.clone_clear(), |a, b| &a + &b);
+            .reduce(|a, b| &a + &b)
+            .unwrap();
         *self = &(&*self + &gradient) * &gradient.normalize();
     }
-
     fn set_gradient_nesterov(
         &mut self,
-        neural_network: &mut Self,
+        neural_network: &Self,
         momentum_network: &Self,
         decay: f32,
         batch: &[(&vector<f32>, &vector<f32>)],
+        thread_pool: &ThreadPool,
     ) {
         *self = self.clear();
-        let gradient: NeuralNetwork = batch
-            .par_iter()
-            .map(|(input, expected)| {
-                (&*neural_network + &(momentum_network * &-decay))
-                    .backward_phase(&neural_network.forward_phase(input), expected)
-            })
-            .reduce(|| neural_network.clone_clear(), |a, b| &a + &b);
+        let gradient: NeuralNetwork = thread_pool.install(|| {
+            batch
+                .par_iter()
+                .map(|(input, expected)| {
+                    (neural_network + &(momentum_network * &-decay))
+                        .backward_phase(&neural_network.forward_phase(input), expected)
+                })
+                .reduce(|| neural_network.clone_clear(), |a, b| &a + &b)
+        });
         *self = &(&*self + &gradient) * &gradient.normalize();
     }
     fn minibatch(
@@ -126,10 +155,11 @@ impl NeuralNetwork {
     ) -> NeuralNetwork {
         let mut gradient: NeuralNetwork = self.clone_clear();
         let mut loss_buffer: VecDeque<f32> = VecDeque::with_capacity(9);
+        let thread_pool: ThreadPool = ThreadPoolBuilder::new().num_threads(get()).build().unwrap();
         for epoch in 0..epochs {
             data.shuffle(&mut thread_rng());
             for batch in data.chunks_exact(chunk_size) {
-                gradient.set_gradient(&mut self, batch);
+                gradient.set_gradient(&self, batch, &thread_pool);
                 gradient = &gradient * &(-learning_rate);
                 self = &self + &gradient;
             }
@@ -156,10 +186,11 @@ impl NeuralNetwork {
         let mut gradient: NeuralNetwork = self.clone_clear();
         let mut loss_buffer: VecDeque<f32> = VecDeque::with_capacity(9);
         let mut weight_update: NeuralNetwork = self.clone_clear();
+        let thread_pool: ThreadPool = ThreadPoolBuilder::new().num_threads(get()).build().unwrap();
         for epoch in 0..epochs {
             data.shuffle(&mut thread_rng());
             for batch in data.chunks_exact(chunk_size) {
-                gradient.set_gradient(&mut self, batch);
+                gradient.set_gradient(&self, batch, &thread_pool);
                 weight_update = &(&weight_update * &decay) + &(&gradient * &(-learning_rate));
                 self = &self + &weight_update;
             }
@@ -186,10 +217,11 @@ impl NeuralNetwork {
         let mut gradient: NeuralNetwork = self.clone_clear();
         let mut loss_buffer: VecDeque<f32> = VecDeque::with_capacity(9);
         let mut weight_update: NeuralNetwork = self.clone_clear();
+        let thread_pool: ThreadPool = ThreadPoolBuilder::new().num_threads(get()).build().unwrap();
         for epoch in 0..epochs {
             data.shuffle(&mut thread_rng());
             for batch in data.chunks_exact(chunk_size) {
-                gradient.set_gradient_nesterov(&mut self, &weight_update, decay, batch);
+                gradient.set_gradient_nesterov(&self, &weight_update, decay, batch, &thread_pool);
                 weight_update = &(&weight_update * &decay) + &(&gradient * &(-learning_rate));
                 self = &self + &weight_update;
             }
@@ -216,11 +248,12 @@ impl NeuralNetwork {
         let mut loss_buffer: VecDeque<f32> = VecDeque::with_capacity(9);
         let mut squared_gradient_sum: NeuralNetwork = self.clone_clear();
         let mut weight_update: NeuralNetwork;
+        let thread_pool: ThreadPool = ThreadPoolBuilder::new().num_threads(get()).build().unwrap();
         let learn_scalar = -learning_rate;
         for epoch in 0..epochs {
             data.shuffle(&mut thread_rng());
             for batch in data.chunks_exact(chunk_size) {
-                gradient.set_gradient(&mut self, batch);
+                gradient.set_gradient(&self, batch, &thread_pool);
                 squared_gradient_sum = &squared_gradient_sum + &gradient.map(&|i: f32| i * i);
                 weight_update = &squared_gradient_sum
                     .map(&|param| learn_scalar / (param.sqrt() + f32::EPSILON))
@@ -252,10 +285,11 @@ impl NeuralNetwork {
         let mut weight_update: NeuralNetwork;
         let mut squared_gradient_sum: NeuralNetwork = self.clone_clear();
         let mut squared_weight_update_sum: NeuralNetwork = self.clone_clear();
+        let thread_pool: ThreadPool = ThreadPoolBuilder::new().num_threads(get()).build().unwrap();
         for epoch in 0..epochs {
             data.shuffle(&mut thread_rng());
             for batch in data.chunks_exact(chunk_size) {
-                gradient.set_gradient(&mut self, batch);
+                gradient.set_gradient(&self, batch, &thread_pool);
                 //yea ignore the following bullshit oneliners :DDD
                 squared_gradient_sum = &(&squared_gradient_sum * &decay)
                     + &(&gradient.map(&|param| param.powi(2)) * &(1.0 - decay));
@@ -291,10 +325,11 @@ impl NeuralNetwork {
         let mut loss_buffer: VecDeque<f32> = VecDeque::with_capacity(9);
         let mut squared_gradient_sum: NeuralNetwork = self.clone_clear();
         let learn_scalar = -learning_rate / chunk_size as f32;
+        let thread_pool: ThreadPool = ThreadPoolBuilder::new().num_threads(get()).build().unwrap();
         for epoch in 0..epochs {
             data.shuffle(&mut thread_rng());
             for batch in data.chunks_exact(chunk_size) {
-                gradient.set_gradient(&mut self, batch);
+                gradient.set_gradient(&self, batch, &thread_pool);
                 squared_gradient_sum = &(&squared_gradient_sum * &decay)
                     + &(&gradient.map(&|param| param * param) * &(1.0 - decay));
 
@@ -330,10 +365,11 @@ impl NeuralNetwork {
         let mut second_moment: NeuralNetwork = self.clone_clear();
         let mut norm_beta_1: f32 = beta1;
         let mut norm_beta_2: f32 = beta2;
+        let thread_pool: ThreadPool = ThreadPoolBuilder::new().num_threads(get()).build().unwrap();
         for epoch in 0..epochs {
             data.shuffle(&mut thread_rng());
             for batch in data.chunks_exact(chunk_size) {
-                gradient.set_gradient(&mut self, batch);
+                gradient.set_gradient(&self, batch, &thread_pool);
                 first_moment = &(&first_moment * &beta1) + &(&gradient * &(1.0 - beta1));
                 second_moment = &(&second_moment * &beta2)
                     + &(&gradient.map(&|param| param * param) * &(1.0 - beta2));

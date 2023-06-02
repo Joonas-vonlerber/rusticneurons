@@ -225,6 +225,7 @@ dependencies = [
  "bincode",
  "half",
  "nalgebra 0.32.2",
+ "num_cpus",
  "rand",
  "rayon",
  "serde",
