@@ -1,4 +1,5 @@
 # Rusticneurons
+
 A machinelearning package for Rust with neural networks :D. Linear algebra is based on the crate [nalgebra](https://github.com/dimforge/nalgebra)
 
 It is not currently a public crate, but maybe in the future?
@@ -6,27 +7,35 @@ It is not currently a public crate, but maybe in the future?
 Really was just a way for me to try out Rust and learn about neural networks on the way.
 
 **Run with release mode on**, because without it, it'll be very slow.
-## Usage:
 
-### Step 1:
+## Usage
+
+### Step 1
+
 Clone the repository
-`git clone https://github.com/Joonas-vonlerber/rusticneurons.git`
 
-### Step 2:
+```bash
+git clone https://github.com/Joonas-vonlerber/rusticneurons.git
+```
+
+### Step 2
+
 In your projects Cargo.toml under dependencies add:
-`neural_network_lib = {path = 'path/to/Neural_network_lib'}`
+
+```toml
+neural_network_lib = {path = 'path/to/Neural_network_lib'}
+```
 
 ## Example program
 
-Provided you have the [MNIST](http://yann.lecun.com/exdb/mnist/) dataset in resources 
+Provided you have the [MNIST](http://yann.lecun.com/exdb/mnist/) dataset in bin_directory/resources
 
-```
+```rust
 extern crate neural_network_lib as nnl;
 use nalgebra::DVector as vector;
 use nnl::files::*;
-use nnl::generating_and_testing::*;
+use nnl::neuralnetwork::*;
 use nnl::loss_and_activation_functions::*;
-use nnl::types_and_errors::*;
 fn main() {
     let mut neural_network: NeuralNetwork = NeuralNetwork::new(
         &[784, 32, 32, 10],
